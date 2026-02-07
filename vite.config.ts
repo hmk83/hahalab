@@ -9,15 +9,19 @@ const __dirname = dirname(__filename);
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  // This allows VITE_GEMINI_API_KEY from .env (if present) to be loaded.
+  // On Cloudflare, these are set in the dashboard, and `process.env` will catch them if loadEnv doesn't.
   const env = loadEnv(mode, __dirname, '');
 
   return {
     plugins: [react()],
-    base: './', // Use relative paths for assets to support subdirectories and flexible hosting
+    base: './', // Relative base for flexible deployment
     define: {
-      // Correctly polyfill process.env.API_KEY for the @google/genai SDK
-      // This allows the build process (Cloudflare) to bake the key into the client-side code
+      // Bake the API key into the build. 
+      // PRIORITY: 
+      // 1. VITE_GEMINI_API_KEY from loaded env (local .env or Cloudflare vars)
+      // 2. process.env.VITE_GEMINI_API_KEY (fallback)
+      // 3. Empty string (prevents crash, handled by App logic)
       'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '') 
     },
     build: {
