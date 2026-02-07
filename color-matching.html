@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>인지 재활 훈련: 색깔 맞추기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Material Symbols Font 추가 -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    <style>
+        /* 폰트 정의 */
+        @font-face {
+            font-family: 'HappinessSansTitle';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2205@1.0/Happiness-Sans-Title.woff2') format('woff2');
+            font-weight: normal;
+            font-display: swap;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+        /* 기본 설정 */
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f0f9ff;
+            color: #0f172a;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* 타이틀 폰트 클래스 */
+        .font-title { font-family: 'HappinessSansTitle', sans-serif; }
+        .game-font { font-family: 'Jua', sans-serif; }
+        .text-body { font-family: 'Noto Sans KR', sans-serif; }
+
+        /* 메인 컨텐츠 영역 */
+        main {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 중앙 정렬 컨테이너 */
+        .center-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding-top: 10vh;
+        }
+
+        /* 하단 컨트롤러 버튼 스타일 */
+        .btn-indicator {
+            width: 18vh; 
+            height: 18vh;
+            max-width: 150px;
+            max-height: 150px;
+            min-width: 90px;
+            min-height: 90px;
+            
+            border-radius: 24px;
+            border-bottom: 8px solid rgba(0,0,0,0.15);
+            transition: all 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: clamp(1.2rem, 3vh, 2rem);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            cursor: pointer;
+            background-color: white;
+            position: relative;
+        }
+
+        .btn-indicator:active, .btn-indicator.active {
+            transform: translateY(4px);
+            border-bottom-width: 4px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+            filter: brightness(0.95);
+        }
+
+        /* 문제 표시 영역 (블럭 형태) */
+        .sequence-block {
+            width: 16vh;
+            height: 16vh;
+            max-width: 130px;
+            max-height: 130px;
+            min-width: 70px;
+            min-height: 70px;
+            
+            border-radius: 20px;
+            margin: 0 8px;
+            border: 6px solid #cbd5e1;
+            background-color: #e2e8f0;
+            transition: all 0.2s;
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0;
+        }
+
+        /* 활성화 상태 */
+        .sequence-block.lit { 
+            transform: scale(1.05); 
+            border-color: white;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        
+        /* 완료 상태 */
+        .sequence-block.done { 
+            opacity: 0.4; 
+            transform: scale(0.9); 
+            background-color: #64748b !important;
+            border-color: #475569;
+            box-shadow: none;
+        }
+
+        /* 색상 정의 */
+        .color-green { color: #000; background-color: #4ade80; border-color: #22c55e; }
+        .color-red { color: #fff; background-color: #ef4444; border-color: #b91c1c; }
+        .color-blue { color: #fff; background-color: #3b82f6; border-color: #1d4ed8; }
+        .color-yellow { color: #000; background-color: #facc15; border-color: #ca8a04; }
+        
+        .sequence-block.color-green { background-color: #4ade80; border-color: #22c55e; }
+        .sequence-block.color-red { background-color: #ef4444; border-color: #b91c1c; }
+        .sequence-block.color-blue { background-color: #3b82f6; border-color: #1d4ed8; }
+        .sequence-block.color-yellow { background-color: #facc15; border-color: #ca8a04; }
+
+        /* 패드 레이아웃 */
+        .pad-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: clamp(12px, 2vh, 24px);
+            padding: clamp(16px, 2.5vh, 32px);
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 40px;
+            border: 2px solid #e2e8f0;
+            box-shadow: 0 10px 30px -5px rgba(0,0,0,0.1);
+        }
+
+        /* 메뉴 아이템 */
+        .menu-item {
+            width: 100%;
+            height: 100%;
+            min-height: 80px;
+            padding: 12px;
+            background: white;
+            border: 3px solid #cbd5e1;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #334155;
+            box-shadow: 0 5px 0 #94a3b8;
+            text-align: center;
+        }
+        .menu-item:active { transform: translateY(5px); box-shadow: none; }
+        .menu-item.selected {
+            background: #fff1f2;
+            color: #e11d48;
+            border-color: #fda4af;
+            box-shadow: 0 5px 0 #fb7185;
+            transform: scale(1.02);
+        }
+
+        /* 모달 오버레이 */
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+
+        /* 팝인 애니메이션 */
+        @keyframes popIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in { animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        
+        /* 타이틀 스타일 수정 */
+        .text-responsive-title { 
+            font-size: clamp(3rem, 10vh, 5.5rem); 
+            line-height: 1.2;
+            color: #334155; /* Slate-700 깔끔한 단색 */
+        }
+        .text-responsive-msg { font-size: clamp(2.5rem, 10vw, 5rem); }
+        
+        /* 디바이스 서클 */
+        .device-circle {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 3px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+            background-color: white;
+        }
+        .device-circle:active { transform: scale(0.95); }
+
+        /* 아이콘 색상 테마 */
+        .device-active { border-color: #3b82f6; box-shadow: 0 0 0 3px #bfdbfe; }
+        .device-active .material-symbols-rounded { color: #2563eb; } /* Blue for Touch/Mouse */
+        
+        /* 조이스틱 활성/비활성 스타일 */
+        .device-joystick-active { border-color: #f43f5e; box-shadow: 0 0 0 3px #fecdd3; } 
+        .device-joystick-active .material-symbols-rounded { color: #f43f5e; } /* Rose-500 */
+
+        .device-joystick-inactive { border-color: #cbd5e1; background-color: #f8fafc; }
+        .device-joystick-inactive .material-symbols-rounded { color: #94a3b8; } /* Gray-400 */
+
+        /* 토스트 메시지 */
+        #toast-container {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            pointer-events: none;
+        }
+        .toast-msg {
+            background-color: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            animation: slideUpFade 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <!-- 1. 메뉴 화면 -->
+        <div id="screen-menu" class="w-full h-full px-4 relative">
+            <div class="center-container">
+                
+                <!-- 타이틀: 폰트 변경 및 단색 적용 -->
+                <h1 class="text-responsive-title font-title font-bold tracking-tight mb-4 text-center">
+                    색깔 맞추기
+                </h1>
+                <p class="text-xl sm:text-2xl text-slate-500 mb-10 font-medium text-center">순서대로 색깔을 기억하여 누르세요</p>
+
+                <!-- 레벨 리스트 -->
+                <div id="level-list" class="w-full max-w-4xl mb-10 grid grid-cols-3 grid-rows-2 gap-4 sm:gap-6 px-2">
+                    <!-- 자바스크립트로 생성 -->
+                </div>
+
+                <!-- 훈련 효과 보기 버튼 -->
+                <button onclick="openEffectModal()" class="w-full max-w-md flex items-center justify-center gap-3 text-white font-bold bg-indigo-600 hover:bg-indigo-700 border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 px-8 py-3 rounded-2xl shadow-lg transition-all text-lg sm:text-xl mb-12">
+                    <span class="material-symbols-rounded text-3xl">description</span>
+                    재활 훈련 효과 확인하기
+                </button>
+
+                <!-- 하단 중앙: 입력 장치 아이콘 (Material Symbols 적용) -->
+                <div class="flex items-center gap-6 mt-auto mb-12">
+                    <!-- Touch -->
+                    <div class="device-circle device-active" onclick="showToast('👆 터치로 플레이가 가능합니다.')">
+                        <span class="material-symbols-rounded text-3xl">touch_app</span>
+                    </div>
+                    <!-- Mouse -->
+                    <div class="device-circle device-active" onclick="showToast('🖱️ 마우스로 플레이가 가능합니다.')">
+                        <span class="material-symbols-rounded text-3xl">mouse</span>
+                    </div>
+                    <!-- Joystick -->
+                    <div id="icon-joystick-container" class="device-circle device-joystick-inactive" onclick="showJoystickToast()">
+                        <span class="material-symbols-rounded text-3xl">sports_esports</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 게임 플레이 화면 -->
+        <div id="screen-game" class="hidden w-full h-full relative">
+            
+            <!-- 처음으로 버튼 (우측 상단 고정, 겹침 해결) -->
+            <div class="absolute top-4 right-4 z-50">
+                <button onclick="goToMenuConfirm()" class="bg-white hover:bg-slate-50 text-slate-600 hover:text-rose-500 px-5 py-3 rounded-2xl text-base font-bold transition-all flex items-center gap-2 shadow-lg border border-slate-200 active:scale-95">
+                    <span class="material-symbols-rounded">home</span>
+                    처음으로
+                </button>
+            </div>
+
+            <!-- 상단 HUD -->
+            <div class="w-full h-full flex flex-col items-center justify-between py-6">
+                
+                <!-- HUD Header -->
+                <div class="w-full max-w-4xl flex justify-between items-end px-4 sm:px-8 border-b border-slate-200 pb-4 mt-20 relative">
+                    <div class="text-center">
+                        <span class="text-slate-400 text-sm block font-bold">단계 (LEVEL)</span>
+                        <span class="text-3xl sm:text-4xl font-black text-sky-600" id="display-level">1</span>
+                    </div>
+                    
+                    <div class="text-center pb-1 mx-auto">
+                        <span class="text-slate-400 text-xs block font-bold">직전 반응속도</span>
+                        <span class="text-xl sm:text-2xl font-bold text-slate-700" id="current-speed">-</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-slate-400 text-sm block font-bold">문제 (ROUND)</span>
+                        <span class="text-3xl sm:text-4xl font-black text-sky-600"><span id="display-round">1</span><span class="text-2xl text-slate-400">/10</span></span>
+                    </div>
+                </div>
+
+                <!-- 중앙 영역 컨테이너 (문제 표시) -->
+                <div class="flex-grow flex flex-col items-center justify-center w-full gap-8">
+                    <div id="sequence-container" class="flex justify-center items-center h-auto w-full max-w-5xl px-2 flex-wrap gap-3"></div>
+                    <div class="h-20 flex items-center justify-center">
+                        <div class="text-responsive-msg font-black game-font text-slate-700 drop-shadow-sm whitespace-nowrap" id="msg-center">준비</div>
+                    </div>
+                </div>
+
+                <!-- 하단 컨트롤러 영역 -->
+                <div class="w-full flex justify-center pb-8 px-4">
+                    <div class="pad-layout">
+                        <!-- 초록: 네모(■) - B2 -->
+                        <div id="feedback-2" class="btn-indicator color-green" onclick="handleTouch(2)">
+                            <span class="mb-1 text-3xl">■</span><span class="text-lg">초록</span>
+                        </div>
+                        <!-- 파랑: 세모(▲) - B3 -->
+                        <div id="feedback-3" class="btn-indicator color-blue" onclick="handleTouch(3)">
+                            <span class="mb-1 text-3xl">▲</span><span class="text-lg">파랑</span>
+                        </div>
+                        <!-- 빨강: X(✖) - B0 -->
+                        <div id="feedback-0" class="btn-indicator color-red" onclick="handleTouch(0)">
+                            <span class="mb-1 text-3xl">✖</span><span class="text-lg">빨강</span>
+                        </div>
+                        <!-- 노랑: 동그라미(●) - B1 -->
+                        <div id="feedback-1" class="btn-indicator color-yellow" onclick="handleTouch(1)">
+                            <span class="mb-1 text-3xl">●</span><span class="text-lg">노랑</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 결과 화면 -->
+        <div id="screen-result" class="hidden w-full h-full relative px-4">
+            <div class="center-container">
+                <h2 class="text-6xl font-black mb-2 text-sky-600 pop-in">훈련 완료</h2>
+                <div class="text-2xl text-slate-500 mb-8">Level <span id="result-level-num">1</span> 종료</div>
+
+                <div class="w-full max-w-3xl bg-white p-8 rounded-[3rem] shadow-2xl border border-slate-100 pop-in mb-8 flex flex-col gap-6" style="max-height: 65vh; overflow-y: auto;">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="text-center p-6 bg-indigo-50 rounded-3xl">
+                            <p class="text-slate-500 font-bold mb-2">평균 반응 속도</p>
+                            <p class="text-5xl font-black text-indigo-600" id="result-avg-time">0ms</p>
+                        </div>
+                        <div class="text-center p-6 bg-rose-50 rounded-3xl">
+                            <p class="text-slate-500 font-bold mb-2">정확도</p>
+                            <p class="text-5xl font-black text-rose-500" id="result-accuracy">100%</p>
+                        </div>
+                    </div>
+                    <div class="border-t border-slate-100 pt-6">
+                        <h3 class="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <span class="material-symbols-rounded text-2xl text-indigo-500">psychology</span>
+                            는지 기능 분석 피드백
+                        </h3>
+                        <p class="text-body text-slate-600 leading-relaxed text-lg bg-slate-50 p-6 rounded-2xl" id="result-feedback">분석 중...</p>
+                    </div>
+                </div>
+
+                <button onclick="goToMenu()" class="w-full max-w-md bg-sky-500 hover:bg-sky-600 text-white font-bold py-5 rounded-2xl text-2xl shadow-xl transition-transform active:scale-95 mb-4">
+                    확인 (메뉴로 이동)
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- 우측 하단 조이스틱 연결 상태 표시 -->
+    <div id="joystick-status" class="fixed bottom-6 right-6 bg-white/90 backdrop-blur px-5 py-3 rounded-full shadow-lg border-2 border-slate-200 flex items-center gap-3 z-50 transition-all">
+        <span id="status-dot" class="w-3 h-3 rounded-full bg-slate-400 shadow-inner"></span>
+        <span id="status-text" class="font-bold text-slate-500 text-sm">조이스틱 미연결</span>
+    </div>
+
+    <!-- 토스트 메시지 컨테이너 -->
+    <div id="toast-container"></div>
+
+    <!-- 모달: 처음으로 확인 -->
+    <div id="modal-confirm-home" class="modal-overlay hidden fixed inset-0 flex items-center justify-center p-4 z-[110]">
+        <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 text-center pop-in relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-400 via-blue-500 to-rose-500"></div>
+            <div class="mb-6">
+                <div class="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="material-symbols-rounded text-5xl text-rose-500">priority_high</span>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-800 mb-2">잠깐만요!</h3>
+                <p class="text-slate-500 text-lg break-keep">지금 돌아가면 진행 중인 내용이 사라져요.<br>첫 화면으로 이동할까요?</p>
+            </div>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeHomeModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 rounded-xl transition-colors">
+                    계속 하기
+                </button>
+                <button onclick="confirmGoToMenu()" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3.5 rounded-xl shadow-md transition-colors">
+                    이동하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달: 전문적 훈련 효과 -->
+    <div id="modal-effect" class="modal-overlay hidden fixed inset-0 flex items-center justify-center p-4 sm:p-8">
+        <div class="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col pop-in">
+            <div class="bg-slate-800 p-6 sm:p-8 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <span class="material-symbols-rounded text-4xl text-white">neurology</span>
+                    <div>
+                        <h3 class="text-white text-2xl sm:text-3xl font-bold">인지 재활 및 뇌 가소성 훈련 효과</h3>
+                        <p class="text-slate-400 text-sm sm:text-base mt-1">Cognitive Rehabilitation & Neuroplasticity Training Effects</p>
+                    </div>
+                </div>
+                <button onclick="closeEffectModal()" class="text-white/60 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors">
+                    <span class="material-symbols-rounded text-3xl">close</span>
+                </button>
+            </div>
+            <div class="flex-grow overflow-y-auto p-8 sm:p-10 text-body bg-slate-50">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- 섹션 1 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h4 class="text-xl font-bold text-indigo-700 mb-3 border-b pb-2 border-indigo-100 flex items-center gap-2">
+                            1. 집행 기능 (Executive Function)
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed mb-3">
+                            본 과제는 전두엽(Frontal Lobe)을 활성화하여 목표 지향적인 행동을 계획하고 실행하는 능력을 훈련합니다.
+                        </p>
+                    </div>
+                    <!-- 섹션 2 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h4 class="text-xl font-bold text-indigo-700 mb-3 border-b pb-2 border-indigo-100 flex items-center gap-2">
+                            2. 시각-운동 통합 (Visuomotor Integration)
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed mb-3">
+                            후두엽(Occipital Lobe)에서 처리된 시각 정보를 두정엽(Parietal Lobe)을 거쳐 운동 피질로 변환합니다.
+                        </p>
+                    </div>
+                    <!-- 섹션 3 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h4 class="text-xl font-bold text-indigo-700 mb-3 border-b pb-2 border-indigo-100 flex items-center gap-2">
+                            3. 작업 기억 (Working Memory)
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed mb-3">
+                            순차적으로 제시되는 색상 정보를 단기적으로 저장하고 인출하는 과정은 작업 기억 용량을 확장시킵니다.
+                        </p>
+                    </div>
+                    <!-- 섹션 4 -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <h4 class="text-xl font-bold text-indigo-700 mb-3 border-b pb-2 border-indigo-100 flex items-center gap-2">
+                            4. 처리 속도 (Processing Speed)
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed mb-3">
+                            자극 제시부터 반응까지의 잠복기(Latency)를 단축시키는 반복 훈련은 인지 처리 속도를 높입니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-slate-200 bg-white shrink-0 flex justify-end">
+                <button onclick="closeEffectModal()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-xl text-lg transition-colors">
+                    확인 및 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        const SOUNDS = { START: 'start', PROBLEM: 'problem', CORRECT: 'correct', WRONG: 'wrong', FINISH: 'finish' };
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === SOUNDS.PROBLEM) {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(659, now); osc.frequency.exponentialRampToValueAtTime(1318, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now); gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === SOUNDS.CORRECT) {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(880, now); osc.frequency.setValueAtTime(1760, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now); gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === SOUNDS.WRONG) {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+                gainNode.gain.setValueAtTime(0.2, now); gainNode.gain.linearRampToValueAtTime(0, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+            } else if (type === SOUNDS.FINISH) {
+                playNote(523, now, 0.1); playNote(659, now+0.1, 0.1); playNote(784, now+0.2, 0.4);
+            }
+        }
+        function playNote(freq, time, dur) {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+            o.frequency.value = freq; g.gain.setValueAtTime(0.1, time); g.gain.linearRampToValueAtTime(0, time + dur);
+            o.start(time); o.stop(time + dur);
+        }
+
+        const CONFIG = {
+            TOTAL_ROUNDS: 10,
+            BUTTONS: { YELLOW: 1, RED: 0, BLUE: 3, GREEN: 2, UP: 8, CONFIRM: 9, DOWN: 17 },
+            COLORS: ['red', 'yellow', 'green', 'blue']
+        };
+
+        let state = {
+            screen: 'MENU', gamepadIndex: null, menuIndex: 0,
+            level: 1, round: 1, sequence: [], inputIndex: 0,
+            startTime: 0, roundTimes: [], totalErrors: 0,
+            isRoundActive: false, lastButtonState: {}, lastNavTime: 0
+        };
+
+        const els = {
+            screens: { menu: document.getElementById('screen-menu'), game: document.getElementById('screen-game'), result: document.getElementById('screen-result') },
+            status: { dot: document.getElementById('status-dot'), text: document.getElementById('status-text'), container: document.getElementById('joystick-status'), iconContainer: document.getElementById('icon-joystick-container') },
+            menuList: document.getElementById('level-list'),
+            game: {
+                level: document.getElementById('display-level'), round: document.getElementById('display-round'),
+                msg: document.getElementById('msg-center'), container: document.getElementById('sequence-container'),
+                currentSpeed: document.getElementById('current-speed')
+            },
+            result: {
+                level: document.getElementById('result-level-num'), avgTime: document.getElementById('result-avg-time'),
+                accuracy: document.getElementById('result-accuracy'), feedback: document.getElementById('result-feedback')
+            },
+            modal: document.getElementById('modal-effect'),
+            modalHome: document.getElementById('modal-confirm-home')
+        };
+
+        function init() {
+            renderMenu();
+            updateStatus(false);
+            window.addEventListener("gamepadconnected", (e) => { state.gamepadIndex = e.gamepad.index; updateStatus(true); showToast("🎮 게임패드가 연결되었습니다!"); });
+            window.addEventListener("gamepaddisconnected", (e) => { if (state.gamepadIndex === e.gamepad.index) { state.gamepadIndex = null; updateStatus(false); showToast("게임패드 연결이 끊겼습니다."); } });
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateStatus(connected) {
+            if (connected) {
+                els.status.container.className = "fixed bottom-6 right-6 bg-green-50/90 backdrop-blur px-5 py-3 rounded-full shadow-lg border-2 border-green-200 flex items-center gap-3 z-50 transition-all";
+                els.status.dot.className = "w-3 h-3 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
+                els.status.text.innerText = "조이스틱 연결됨";
+                els.status.text.className = "font-bold text-green-700 text-sm";
+                els.status.iconContainer.classList.remove('device-joystick-inactive');
+                els.status.iconContainer.classList.add('device-joystick-active'); // 변경됨
+            } else {
+                els.status.container.className = "fixed bottom-6 right-6 bg-white/90 backdrop-blur px-5 py-3 rounded-full shadow-lg border-2 border-slate-200 flex items-center gap-3 z-50 transition-all";
+                els.status.dot.className = "w-3 h-3 rounded-full bg-slate-300";
+                els.status.text.innerText = "조이스틱 미연결";
+                els.status.text.className = "font-bold text-slate-500 text-sm";
+                els.status.iconContainer.classList.remove('device-joystick-active'); // 변경됨
+                els.status.iconContainer.classList.add('device-joystick-inactive');
+            }
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast-msg';
+            toast.innerHTML = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.4s forwards';
+                setTimeout(() => toast.remove(), 400);
+            }, 3000);
+        }
+
+        function showJoystickToast() {
+            if(state.gamepadIndex !== null) {
+                showToast('🎮 게임패드로 플레이가 가능합니다.');
+            } else {
+                showToast('🔌 게임패드를 연결해 주세요.');
+            }
+        }
+
+        function openEffectModal() { els.modal.classList.remove('hidden'); }
+        function closeEffectModal() { els.modal.classList.add('hidden'); }
+        
+        function goToMenu() { 
+            state.screen = 'MENU'; 
+            updateScreenVisibility(); 
+            closeHomeModal(); 
+        }
+        
+        function goToMenuConfirm() { els.modalHome.classList.remove('hidden'); }
+        function closeHomeModal() { els.modalHome.classList.add('hidden'); }
+        function confirmGoToMenu() { goToMenu(); }
+
+        function updateScreenVisibility() {
+            Object.values(els.screens).forEach(el => el.classList.add('hidden'));
+            if (state.screen === 'MENU') { els.screens.menu.classList.remove('hidden'); }
+            else if (state.screen === 'PLAYING') { els.screens.game.classList.remove('hidden'); }
+            else if (state.screen === 'RESULT') { els.screens.result.classList.remove('hidden'); }
+        }
+
+        function handleTouch(btnIdx) {
+            if (state.screen === 'PLAYING') {
+                const el = document.getElementById(`feedback-${btnIdx}`);
+                if(el) {
+                    el.classList.add('active');
+                    setTimeout(() => el.classList.remove('active'), 150);
+                }
+                if (state.isRoundActive) checkAnswer(btnIdx);
+            }
+        }
+
+        function renderMenu() {
+            els.menuList.innerHTML = '';
+            for (let i = 1; i <= 6; i++) {
+                const div = document.createElement('div');
+                div.className = `menu-item ${state.menuIndex === (i-1) ? 'selected' : ''}`;
+                div.onclick = () => { if (audioCtx.state === 'suspended') audioCtx.resume(); startGame(i); };
+                
+                let difficultyText = "";
+                if(i === 1) difficultyText = "기초 (1개)";
+                else if(i === 3) difficultyText = "중급 (3개)";
+                else if(i === 5) difficultyText = "심화 (5개)";
+                else if(i === 6) difficultyText = "마스터 (6개)";
+                else difficultyText = `(${i}개)`;
+
+                div.innerHTML = `<span class="font-bold text-xl sm:text-2xl">LEVEL ${i}</span> <span class="font-bold text-slate-400 text-sm sm:text-lg mt-1">${difficultyText}</span>`;
+                els.menuList.appendChild(div);
+            }
+        }
+
+        function gameLoop() { pollGamepad(); requestAnimationFrame(gameLoop); }
+
+        function pollGamepad() {
+            if (state.gamepadIndex === null) {
+                const gps = navigator.getGamepads();
+                for (let i = 0; i < gps.length; i++) {
+                    if (gps[i]) {
+                        state.gamepadIndex = i;
+                        updateStatus(true);
+                        showToast("🎮 게임패드가 감지되었습니다!");
+                        break; 
+                    }
+                }
+                return;
+            }
+
+            const gamepad = navigator.getGamepads()[state.gamepadIndex];
+            if (!gamepad) {
+                state.gamepadIndex = null;
+                updateStatus(false);
+                return;
+            }
+
+            Object.values(CONFIG.BUTTONS).forEach(btnIdx => {
+                if (btnIdx >= gamepad.buttons.length) return;
+                const isDown = gamepad.buttons[btnIdx].pressed;
+                const wasDown = state.lastButtonState[btnIdx] || false;
+
+                if (isDown && !wasDown) {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    handleGamepadInput(btnIdx);
+                }
+                if (state.screen === 'PLAYING' && [0,1,2,3].includes(btnIdx)) {
+                    const el = document.getElementById(`feedback-${btnIdx}`);
+                    if(el) { isDown ? el.classList.add('active') : el.classList.remove('active'); }
+                }
+                state.lastButtonState[btnIdx] = isDown;
+            });
+        }
+
+        function handleGamepadInput(btnIdx) {
+            const now = Date.now();
+            if (state.screen === 'MENU') {
+                if (now - state.lastNavTime < 150) return;
+                if (btnIdx === CONFIG.BUTTONS.DOWN) { state.menuIndex = Math.min(5, state.menuIndex + 3); state.lastNavTime = now; renderMenu(); }
+                else if (btnIdx === CONFIG.BUTTONS.UP) { state.menuIndex = Math.max(0, state.menuIndex - 3); state.lastNavTime = now; renderMenu(); } 
+                else if (btnIdx === 14) { state.menuIndex = Math.max(0, state.menuIndex - 1); state.lastNavTime = now; renderMenu(); }
+                else if (btnIdx === 15) { state.menuIndex = Math.min(5, state.menuIndex + 1); state.lastNavTime = now; renderMenu(); }
+                else if (btnIdx === CONFIG.BUTTONS.CONFIRM) { els.modal.classList.contains('hidden') ? startGame(state.menuIndex + 1) : closeEffectModal(); }
+            } else if (state.screen === 'PLAYING') {
+                if (state.isRoundActive && [0,1,2,3].includes(btnIdx)) checkAnswer(btnIdx);
+            } else if (state.screen === 'RESULT') {
+                if (btnIdx === CONFIG.BUTTONS.CONFIRM) goToMenu();
+            }
+        }
+
+        function startGame(level) {
+            state.level = level;
+            state.round = 1;
+            state.roundTimes = [];
+            state.totalErrors = 0;
+            state.screen = 'PLAYING';
+            updateScreenVisibility();
+            updateHUD();
+            startRound();
+        }
+
+        function updateHUD() {
+            els.game.level.innerText = state.level;
+            els.game.round.innerText = state.round;
+            const lastTime = state.roundTimes.length > 0 ? state.roundTimes[state.roundTimes.length-1] + "ms" : "-";
+            els.game.currentSpeed.innerText = lastTime;
+        }
+
+        function startRound() {
+            state.isRoundActive = false;
+            state.inputIndex = 0;
+            state.sequence = [];
+            els.game.container.innerHTML = '';
+            els.game.msg.innerText = "준비";
+            els.game.msg.className = "text-responsive-msg font-black game-font text-slate-300";
+
+            for (let i = 0; i < state.level; i++) state.sequence.push(Math.floor(Math.random() * 4));
+
+            state.sequence.forEach((colorIdx, idx) => {
+                const dot = document.createElement('div');
+                dot.className = `sequence-block`; 
+                dot.dataset.targetColor = CONFIG.COLORS[colorIdx];
+                els.game.container.appendChild(dot);
+            });
+
+            setTimeout(() => {
+                els.game.msg.innerText = "시작!";
+                els.game.msg.className = "text-responsive-msg font-black game-font text-sky-600 scale-110 transition-transform duration-200";
+                playSound(SOUNDS.PROBLEM);
+                
+                const blocks = document.querySelectorAll('.sequence-block');
+                blocks.forEach(b => {
+                    b.classList.add(`color-${b.dataset.targetColor}`);
+                    b.classList.add('lit');
+                });
+
+                state.startTime = Date.now();
+                state.isRoundActive = true;
+            }, 1000 + (Math.random() * 500));
+        }
+
+        function checkAnswer(btnIdx) {
+            const targetColorIdx = state.sequence[state.inputIndex];
+            if (btnIdx === targetColorIdx) {
+                playSound(SOUNDS.CORRECT);
+                const blocks = document.querySelectorAll('.sequence-block');
+                blocks[state.inputIndex].classList.remove('lit');
+                blocks[state.inputIndex].classList.add('done');
+                state.inputIndex++;
+
+                if (state.inputIndex >= state.sequence.length) {
+                    const reactionTime = Date.now() - state.startTime;
+                    state.roundTimes.push(reactionTime);
+                    state.isRoundActive = false;
+                    els.game.msg.innerText = `${reactionTime}ms`;
+                    els.game.msg.className = "text-responsive-msg font-black game-font text-green-500";
+                    els.game.currentSpeed.innerText = `${reactionTime}ms`;
+                    setTimeout(nextRound, 800);
+                }
+            } else {
+                playSound(SOUNDS.WRONG);
+                state.totalErrors++;
+                const blocks = document.querySelectorAll('.sequence-block');
+                if (blocks[state.inputIndex]) {
+                    const wrongBlock = blocks[state.inputIndex];
+                    wrongBlock.style.transform = "translateX(10px)";
+                    setTimeout(() => wrongBlock.style.transform = "translateX(0)", 100);
+                }
+                document.body.style.backgroundColor = "#fee2e2";
+                setTimeout(() => document.body.style.backgroundColor = "#f0f9ff", 200);
+            }
+        }
+
+        function nextRound() {
+            if (state.round >= CONFIG.TOTAL_ROUNDS) finishGame();
+            else { state.round++; updateHUD(); startRound(); }
+        }
+
+        function finishGame() {
+            playSound(SOUNDS.FINISH);
+            const sum = state.roundTimes.reduce((a, b) => a + b, 0);
+            const avg = Math.floor(sum / state.roundTimes.length);
+            const totalClicks = state.roundTimes.length * state.level + state.totalErrors; 
+            const accuracy = Math.max(0, Math.floor(((totalClicks - state.totalErrors) / totalClicks) * 100));
+
+            els.result.level.innerText = state.level;
+            els.result.avgTime.innerText = `${avg}ms`;
+            els.result.accuracy.innerText = `${accuracy}%`;
+
+            let feedback = "";
+            const baseSpeed = 500 * state.level;
+
+            if (accuracy >= 95) {
+                if (avg < baseSpeed * 0.8) feedback = "매우 뛰어난 처리 속도와 정확성을 보이고 있습니다.";
+                else if (avg < baseSpeed) feedback = "안정적인 처리 속도와 높은 정확도를 유지하고 있습니다.";
+                else feedback = "정확한 수행에 강점이 있으나, 반응 속도를 높이는 훈련이 필요합니다.";
+            } else if (accuracy >= 80) {
+                if (avg < baseSpeed) feedback = "반응 속도는 우수하나 간헐적인 실수가 있습니다.";
+                else feedback = "전반적인 수행력은 양호합니다. 정확도를 높이세요.";
+            } else {
+                feedback = "기초적인 주의력 훈련부터 차근차근 진행하는 것이 좋습니다.";
+            }
+
+            els.result.feedback.innerText = feedback;
+            state.screen = 'RESULT';
+            updateScreenVisibility();
+        }
+
+        init();
+    </script>
+</body>
+</html>
