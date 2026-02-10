@@ -1,0 +1,2578 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAHA LAB - Child Development Center Dashboard (Supabase)</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel (for JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        
+        /* Custom Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        
+        @keyframes bounceCustom {
+            0%, 100% { transform: translateY(-5%); animation-timing-function: cubic-bezier(0.8,0,1,1); }
+            50% { transform: translateY(0); animation-timing-function: cubic-bezier(0,0,0.2,1); }
+        }
+        .animate-bounce-custom { animation: bounceCustom 1s infinite; }
+        
+        /* Scrollbar Hide Utilities */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Custom Scrollbar for other areas */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] },
+                    colors: {
+                        brand: { yellow: '#FDE047', dark: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        /**
+         * [SUPABASE CONFIGURATION]
+         */
+        const SUPABASE_URL = 'https://gxungzlecmibgvykoiib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_hzQriBXTJeAwATA2NjnV7A_Tr9E1hfE'; // Provided Anon Key
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        /**
+         * [UTILITIES] CamelCase <-> SnakeCase Converters
+         */
+        const toCamel = (s) => s.replace(/([-_][a-z])/ig, ($1) => $1.toUpperCase().replace('-', '').replace('_', ''));
+        const toSnake = (s) => s.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+
+        const keysToCamel = (o) => {
+            if (o === Object(o) && !Array.isArray(o) && typeof o !== 'function') {
+                const n = {};
+                Object.keys(o).forEach((k) => {
+                    n[toCamel(k)] = keysToCamel(o[k]);
+                });
+                return n;
+            } else if (Array.isArray(o)) {
+                return o.map((i) => keysToCamel(i));
+            }
+            return o;
+        };
+
+        const keysToSnake = (o) => {
+            if (o === Object(o) && !Array.isArray(o) && typeof o !== 'function') {
+                const n = {};
+                Object.keys(o).forEach((k) => {
+                    // JSONB 데이터 등은 변환하지 않고 그대로 둠
+                    if (k === 'guardians' || k === 'areas') {
+                        n[toSnake(k)] = o[k];
+                    } else {
+                        n[toSnake(k)] = keysToSnake(o[k]);
+                    }
+                });
+                return n;
+            } else if (Array.isArray(o)) {
+                return o.map((i) => keysToSnake(i));
+            }
+            return o;
+        };
+
+        /**
+         * ICON SYSTEM (Replaces lucide-react imports)
+         */
+        const IconBase = ({ children, size = 24, className = "", ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className} 
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        const CalendarIcon = (p) => <IconBase {...p}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></IconBase>;
+        const Clock = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>;
+        const User = (p) => <IconBase {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></IconBase>;
+        const Users = (p) => <IconBase {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
+        const Settings = (p) => <IconBase {...p}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const LogOut = (p) => <IconBase {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>;
+        const ChevronLeft = (p) => <IconBase {...p}><polyline points="15 18 9 12 15 6"/></IconBase>;
+        const ChevronRight = (p) => <IconBase {...p}><polyline points="9 18 15 12 9 6"/></IconBase>;
+        const Plus = (p) => <IconBase {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></IconBase>;
+        const X = (p) => <IconBase {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
+        const Search = (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>;
+        const FileText = (p) => <IconBase {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconBase>;
+        const Check = (p) => <IconBase {...p}><polyline points="20 6 9 17 4 12"/></IconBase>;
+        const AlertCircle = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconBase>;
+        const Play = (p) => <IconBase {...p}><polygon points="5 3 19 12 5 21 5 3"/></IconBase>;
+        const Pause = (p) => <IconBase {...p}><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></IconBase>;
+        const MoreHorizontal = (p) => <IconBase {...p}><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></IconBase>;
+        const Mic = (p) => <IconBase {...p}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></IconBase>;
+        const Eye = (p) => <IconBase {...p}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const Brain = (p) => <IconBase {...p}><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></IconBase>;
+        const Ear = (p) => <IconBase {...p}><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"/><path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 0 4 0v-1"/></IconBase>;
+        const Smile = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></IconBase>;
+        const Palette = (p) => <IconBase {...p}><path d="M13.5 2a8.38 8.38 0 0 1 3.5 16.3 3 3 0 0 0-2.5 2.7l-.05 1a1 1 0 0 1-1.9.2 1 1 0 0 1 .5-.9V21A7 7 0 1 0 3 13.5a1 1 0 0 1 .5-1 1 1 0 0 1 1 .5A5 5 0 1 1 13.5 2Z"/><circle cx="8" cy="7" r="1"/><circle cx="16" cy="7" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="16" cy="16" r="1"/></IconBase>;
+        const MessageCircle = (p) => <IconBase {...p}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></IconBase>;
+        const Activity = (p) => <IconBase {...p}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></IconBase>;
+        const LayoutGrid = (p) => <IconBase {...p}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></IconBase>;
+        const Trash2 = (p) => <IconBase {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></IconBase>;
+        const AlertTriangle = (p) => <IconBase {...p}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></IconBase>;
+        const Coffee = (p) => <IconBase {...p}><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></IconBase>;
+        const Flag = (p) => <IconBase {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></IconBase>;
+        const ArrowRight = (p) => <IconBase {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></IconBase>;
+        const BarChart2 = (p) => <IconBase {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>;
+        const History = (p) => <IconBase {...p}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></IconBase>;
+        const CalendarDays = (p) => <IconBase {...p}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></IconBase>;
+        const Bell = (p) => <IconBase {...p}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></IconBase>;
+        const Gamepad2 = (p) => <IconBase {...p}><line x1="6" y1="11" x2="10" y2="11"/><line x1="8" y1="9" x2="8" y2="13"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="18" y1="10" x2="18.01" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></IconBase>;
+        const ArrowDownUp = (p) => <IconBase {...p}><polyline points="3 16 7 20 11 16"/><line x1="7" y1="20" x2="7" y2="4"/><polyline points="21 8 17 4 13 8"/><line x1="17" y1="4" x2="17" y2="20"/></IconBase>;
+        const GraduationCap = (p) => <IconBase {...p}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></IconBase>;
+        const Repeat = (p) => <IconBase {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></IconBase>;
+        const XCircle = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></IconBase>;
+        const Edit3 = (p) => <IconBase {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></IconBase>;
+        const ArrowRightCircle = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 16 16 12 12 8"/><line x1="8" y1="12" x2="16" y2="12"/></IconBase>;
+        const Filter = (p) => <IconBase {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></IconBase>;
+        const Grid = (p) => <IconBase {...p}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></IconBase>;
+        const Lock = (p) => <IconBase {...p}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
+        const Menu = (p) => <IconBase {...p}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></IconBase>;
+        const CheckCircle = (p) => <IconBase {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>;
+        const Megaphone = (p) => <IconBase {...p}><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></IconBase>;
+        const ChevronDown = (p) => <IconBase {...p}><polyline points="6 9 12 15 18 9"/></IconBase>;
+        const ChevronUp = (p) => <IconBase {...p}><polyline points="18 15 12 9 6 15"/></IconBase>;
+        const Info = (p) => <IconBase {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconBase>;
+
+        /**
+         * UTILITIES
+         */
+        const checkPassword = (input) => {
+          let hash = 0;
+          for (let i = 0; i < input.length; i++) {
+            const char = input.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+          }
+          return hash === 1569953;
+        };
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+
+        const formatDateLocal = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        const calculateAge = (dob) => {
+          if (!dob) return '';
+          const today = new Date();
+          const birthDate = new Date(dob);
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const m = today.getMonth() - birthDate.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+          return age;
+        };
+
+        const getChosung = (str) => {
+          const CHO = [
+            'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 
+            'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
+          ];
+          if (!str) return '#';
+          const code = str.charCodeAt(0) - 44032;
+          if (code > -1 && code < 11172) return CHO[Math.floor(code / 588)];
+          return '#';
+        };
+
+        const checkTimeOverlap = (startA, endA, startB, endB) => {
+          return (startA < endB) && (endA > startB);
+        };
+
+        const checkIsMobile = () => {
+            return window.innerWidth < 768;
+        };
+
+        const KakaoSwitch = ({ isOn, onToggle }) => (
+          <div 
+            onClick={onToggle}
+            className={`w-12 h-7 rounded-full p-1 cursor-pointer transition-colors duration-300 ease-in-out relative ${isOn ? 'bg-[#FDE047]' : 'bg-slate-200'}`}
+          >
+            <div 
+              className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${isOn ? 'translate-x-5' : 'translate-x-0'}`} 
+            />
+          </div>
+        );
+
+        // PLAY LAB Categories
+        const PLAY_CATEGORIES = [
+          { id: 'think', title: '생각 플레이', sub: '인지학습', desc: '기억력, 주의력, 문제해결력을 향상시키는 인지 재활 훈련 프로그램입니다.', color: 'bg-orange-100 text-orange-800', border: 'border-orange-200' },
+          { id: 'sound', title: '소리 플레이', sub: '음소학습', desc: '음소 인식 및 조음 능력 개선을 위한 청각·언어 기초 훈련을 제공합니다.', color: 'bg-green-100 text-green-800', border: 'border-green-200' },
+          { id: 'listen', title: '듣기 플레이', sub: '청각학습', desc: '청각적 주의력 집중과 말소리 변별력을 기르는 전문 청능 훈련입니다.', color: 'bg-blue-100 text-blue-800', border: 'border-blue-200' },
+          { id: 'see', title: '보기 플레이', sub: '시지각 학습', desc: '시각 정보 처리 속도와 정확성을 높이는 시지각 발달 및 재활 훈련입니다.', color: 'bg-purple-100 text-purple-800', border: 'border-purple-200' },
+          { id: 'speak', title: '말하기 플레이', sub: '어휘/표현', desc: '어휘력 확장과 문장 구성 능력 증진을 돕는 언어 표현 치료 프로그램입니다.', color: 'bg-yellow-100 text-yellow-800', border: 'border-yellow-200' },
+          { id: 'life', title: '생활 플레이', sub: '일상/사회', desc: '일상생활 동작 수행(ADL)과 사회적 상호작용 기술 습득을 위한 적응 훈련입니다.', color: 'bg-teal-100 text-teal-800', border: 'border-teal-200' },
+          { id: 'art', title: '아트 플레이', sub: '미술', desc: '소근육 운동 조절 능력 향상과 심리적 정서 안정을 유도하는 창의 미술 활동입니다.', color: 'bg-pink-100 text-pink-800', border: 'border-pink-200' }
+        ];
+
+        /**
+         * MAIN APP COMPONENT
+         */
+        function App() {
+          const [user, setUser] = useState(() => {
+              try {
+                  const saved = localStorage.getItem('haha_lab_session');
+                  return saved ? JSON.parse(saved) : null;
+              } catch (e) { return null; }
+          });
+          
+          const [view, setView] = useState(() => {
+              return localStorage.getItem('haha_lab_session') ? 'dashboard' : 'intro';
+          });
+
+          const [currentTime, setCurrentTime] = useState(new Date());
+          const [toast, setToast] = useState(null); 
+          const [dashboardKey, setDashboardKey] = useState(0); 
+          const [showProfileModal, setShowProfileModal] = useState(false);
+           
+          const [settings, setSettings] = useState({
+            defaultSessionTime: 50, 
+            alertBefore5: true,
+            alertAfter5: true,
+            showPausedClients: false, // Default hidden
+            showTerminatedClients: false // Default hidden
+          });
+          const [showSettings, setShowSettings] = useState(false);
+          const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+          // Data State
+          const [clients, setClients] = useState([]);
+          const [schedules, setSchedules] = useState([]);
+          const [currentSession, setCurrentSession] = useState(null);
+          
+          // Data fetching for User-Specific Data
+          useEffect(() => {
+              if (user && view === 'dashboard') {
+                  fetchClients();
+                  fetchSchedules();
+              }
+          }, [user, view]);
+
+          const fetchClients = async () => {
+              const { data, error } = await supabase
+                .from('clients')
+                .select('*')
+                .eq('teacher_id', user.teacherId)
+                .order('name', { ascending: true });
+              if (!error) setClients(keysToCamel(data));
+          };
+
+          const fetchSchedules = async () => {
+              const { data, error } = await supabase
+                .from('schedules')
+                .select('*')
+                .eq('teacher_id', user.teacherId)
+                .order('date', { ascending: true });
+              if (!error) setSchedules(keysToCamel(data));
+          };
+           
+          useEffect(() => {
+            const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+            return () => clearInterval(timer);
+          }, []);
+
+          const showToast = (message) => {
+            setToast(message);
+            setTimeout(() => setToast(null), 3000);
+          };
+
+          const handleSessionEndRequest = () => {
+            setShowExitConfirm(true);
+          };
+
+          const confirmSessionEnd = async () => {
+            if (currentSession) {
+              const { error } = await supabase.from('schedules').update({ status: 'completed' }).eq('id', currentSession.id);
+              if(!error) {
+                 setSchedules(prev => prev.map(s => s.id === currentSession.id ? { ...s, status: 'completed' } : s));
+              }
+            }
+            setCurrentSession(null);
+            setView('dashboard');
+            setShowExitConfirm(false);
+          };
+
+          const handleUpdateClientWrapper = (updatedClient) => {
+              setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
+          };
+
+          const handleDeleteSchedule = async (id) => {
+              const { error } = await supabase.from('schedules').delete().eq('id', id);
+              if (!error) {
+                  setSchedules(prev => prev.filter(s => s.id !== id));
+                  showToast('일정이 삭제되었습니다.');
+              } else {
+                  showToast('일정 삭제 실패: ' + error.message);
+              }
+          };
+
+          const handleLogout = () => {
+              // [MODIFIED] Clear session from localStorage
+              localStorage.removeItem('haha_lab_session');
+              setShowProfileModal(false);
+              setUser(null);
+              setView('login');
+          };
+
+          if (view === 'intro') return <IntroView onFinish={() => setView('login')} />;
+          if (view === 'login') return <LoginView onLogin={(loggedInUser) => {
+              // [MODIFIED] Save session to localStorage
+              localStorage.setItem('haha_lab_session', JSON.stringify(loggedInUser));
+              setUser(loggedInUser);
+              setView('dashboard');
+              showToast(`안녕하세요 ${loggedInUser.name} 선생님. 오늘도 좋은 하루보내세요.`);
+          }} />;
+
+          return (
+            <div className="w-full h-screen bg-[#FDE047] text-slate-900 font-sans overflow-hidden flex flex-col relative">
+              <GNB 
+                user={user} 
+                isSession={view === 'session' && currentSession?.type === 'client'}
+                sessionData={currentSession}
+                onExitSession={handleSessionEndRequest}
+                onOpenSettings={() => setShowSettings(true)}
+                onLogoClick={() => {
+                  if (view === 'session' && currentSession?.type === 'client') handleSessionEndRequest();
+                  else {
+                      setView('dashboard');
+                      setDashboardKey(prev => prev + 1);
+                      setCurrentSession(null);
+                  }
+                }}
+                onNoticeClick={() => setView('notice')}
+                onProfileClick={() => setShowProfileModal(true)}
+              />
+
+              <div className="flex-1 flex overflow-hidden relative bg-white">
+                {view === 'dashboard' ? (
+                  <Dashboard 
+                    key={dashboardKey}
+                    clients={clients} 
+                    setClients={setClients}
+                    schedules={schedules}
+                    setSchedules={setSchedules}
+                    currentTime={currentTime}
+                    settings={settings}
+                    onStartSession={(schedule) => {
+                      setCurrentSession(schedule);
+                      setView('session');
+                    }}
+                    showToast={showToast}
+                    user={user}
+                    onDeleteSchedule={handleDeleteSchedule}
+                  />
+                ) : view === 'session' ? (
+                  currentSession?.type === 'reserve' ? (
+                      <ConsultationMode 
+                          session={currentSession}
+                          client={clients.find(c => c.id === currentSession.clientId)}
+                          onExit={handleSessionEndRequest}
+                          onUpdateClient={handleUpdateClientWrapper}
+                          showToast={showToast}
+                      />
+                  ) : (
+                      <SessionMode 
+                        session={currentSession}
+                        onExit={handleSessionEndRequest}
+                      />
+                  )
+                ) : view === 'notice' ? (
+                  <NoticePage onBack={() => setView('dashboard')} />
+                ) : null}
+              </div>
+
+              {showSettings && <SettingsModal settings={settings} setSettings={setSettings} onClose={() => setShowSettings(false)} />}
+              
+              {showProfileModal && (
+                  <ProfileModal 
+                      user={user} 
+                      onClose={() => setShowProfileModal(false)} 
+                      onLogout={handleLogout}
+                  />
+              )}
+               
+              {showExitConfirm && (
+                <SessionExitModal 
+                  onClose={() => setShowExitConfirm(false)}
+                  onConfirm={confirmSessionEnd}
+                  sessionType={currentSession?.type}
+                />
+              )}
+
+              {toast && (
+                <div className="absolute bottom-8 right-8 bg-slate-800 text-white px-6 py-4 rounded-xl shadow-2xl animate-fade-in z-50 flex items-center gap-3 min-w-[300px] max-w-[90vw]">
+                  <div className="bg-[#FDE047] p-2 rounded-full text-slate-900 shrink-0">
+                    <Bell size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">알림</p>
+                    <p className="text-sm text-slate-300 break-words">{toast}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // 1. INTRO
+        function IntroView({ onFinish }) {
+            const [progress, setProgress] = useState(0);
+            useEffect(() => {
+                const timer = setInterval(() => setProgress(p => p >= 100 ? 100 : p + 2), 30);
+                return () => clearInterval(timer);
+            }, []);
+            useEffect(() => { if (progress >= 100) setTimeout(onFinish, 500); }, [progress, onFinish]);
+            return (
+                <div className="w-full h-screen bg-[#FDE047] flex flex-col items-center justify-center animate-fade-in relative">
+                    <div className="flex flex-col items-center mb-12">
+                        <div className="text-5xl md:text-6xl font-black mb-4 tracking-tighter animate-bounce-custom">HAHA LAB</div>
+                        <p className="text-lg md:text-xl font-medium animate-pulse text-center px-4">즐거운 배움이 시작되는 곳</p>
+                    </div>
+                    <div className="w-48 md:w-64 h-1 bg-yellow-600/20 rounded-full overflow-hidden mb-2">
+                        <div className="h-full bg-slate-900 transition-all duration-100 ease-linear" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-sm font-bold text-slate-900">{progress}%</p>
+                    <p className="absolute bottom-10 text-[10px] md:text-xs text-slate-500 font-medium">© 2026 HAHA LAB Corp.</p>
+                </div>
+            );
+        }
+
+        // 2. LOGIN (Supabase Connected)
+        function LoginView({ onLogin }) {
+          const [id, setId] = useState('');
+          const [pw, setPw] = useState('');
+          const [remember, setRemember] = useState(true);
+          const [error, setError] = useState(false);
+          const [loading, setLoading] = useState(false);
+          const [suspendMsg, setSuspendMsg] = useState(null); // suspended message
+
+          const handleAuth = async () => {
+            setLoading(true);
+            setError(false);
+            setSuspendMsg(null);
+            
+            try {
+                // Verify against teachers table
+                const { data, error } = await supabase
+                    .from('teachers')
+                    .select('*')
+                    .eq('teacher_id', id)
+                    .eq('password', pw) // In production, use hashing
+                    .maybeSingle();
+
+                if (error || !data) {
+                    setError(true);
+                    setPw('');
+                } else {
+                    if (data.status === 'suspended' || data.status === 'paused') {
+                        setSuspendMsg({
+                            title: "사용 정지된 계정입니다.",
+                            desc: "관리자에 문의하세요.\n010-8416-3323 카톡 또는 문자로 문의 부탁드립니다."
+                        });
+                    } else {
+                        onLogin(keysToCamel(data));
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                setError(true);
+            } finally {
+                setLoading(false);
+            }
+          };
+
+          return (
+            <div className="w-full h-screen bg-slate-800/90 flex items-center justify-center fixed inset-0 z-50 backdrop-blur-sm p-4">
+              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-2xl w-full max-w-md text-center relative">
+                <h2 className="text-3xl font-black text-slate-900 mb-8">HAHA LAB</h2>
+                
+                {suspendMsg ? (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left animate-fade-in">
+                        <div className="flex items-center gap-2 mb-2 text-red-600 font-bold">
+                            <AlertCircle size={20}/>
+                            <span>{suspendMsg.title}</span>
+                        </div>
+                        <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                            {suspendMsg.desc}
+                        </p>
+                        <button onClick={() => setSuspendMsg(null)} className="mt-4 w-full py-2 bg-red-100 text-red-700 font-bold rounded-lg text-sm hover:bg-red-200">확인</button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex flex-col gap-4 mb-6 text-left">
+                          <div>
+                              <label className="text-xs font-bold text-slate-500 mb-1 block pl-1">아이디</label>
+                              <input 
+                                type="text" 
+                                value={id} 
+                                onChange={(e) => { setId(e.target.value); setError(false); }} 
+                                className={`w-full text-lg font-bold p-3 border-2 rounded-xl focus:outline-none transition ${error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-[#FDE047]'}`} 
+                                placeholder="아이디 입력"
+                              />
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-slate-500 mb-1 block pl-1">비밀번호</label>
+                              <input 
+                                type="password" 
+                                value={pw} 
+                                onChange={(e) => { setPw(e.target.value); setError(false); }} 
+                                onKeyDown={(e) => e.key === 'Enter' && handleAuth()} 
+                                className={`w-full text-lg font-bold p-3 border-2 rounded-xl focus:outline-none transition ${error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-[#FDE047]'}`} 
+                                placeholder="비밀번호 입력"
+                                maxLength={6}
+                              />
+                          </div>
+                          <div className="flex items-center gap-2 pl-1">
+                              <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} className="w-4 h-4 accent-slate-900" id="remember"/>
+                              <label htmlFor="remember" className="text-sm font-bold text-slate-500 cursor-pointer">아이디 저장</label>
+                          </div>
+                          {error && <p className="text-red-500 text-xs font-bold text-center mt-2">아이디 또는 비밀번호를 확인해주세요.</p>}
+                        </div>
+
+                        <button onClick={handleAuth} disabled={loading} className="w-full bg-[#FDE047] text-slate-900 font-bold py-4 rounded-xl hover:bg-yellow-300 transition shadow-lg disabled:opacity-50">
+                            {loading ? '확인 중...' : '접속하기'}
+                        </button>
+                    </>
+                )}
+                
+                <p className="mt-8 text-xs text-slate-400 font-medium">© 2026 HAHA LAB Corp. All rights reserved.</p>
+              </div>
+            </div>
+          );
+        }
+
+        // 3. GNB
+        function GNB({ user, isSession, sessionData, onExitSession, onOpenSettings, onLogoClick, onNoticeClick, onProfileClick }) {
+          return (
+            <header className="h-16 bg-[#FDE047] border-b border-yellow-500/30 flex items-center justify-between px-4 md:px-6 shrink-0 z-20 shadow-sm">
+              <div className="flex items-center gap-4 md:gap-6">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
+                  <div className="bg-slate-900 text-[#FDE047] font-black p-1.5 rounded text-sm">HL</div>
+                  <span className="font-black text-lg md:text-xl tracking-tight">HAHA LAB</span>
+                </div>
+                {isSession && <div className="flex items-center gap-2 md:gap-4 bg-white/40 px-3 py-1.5 rounded-full"><span className="font-bold text-xs md:text-base text-slate-900">수업 진행 중</span></div>}
+              </div>
+              <div className="flex items-center gap-2 md:gap-4">
+                {isSession ? 
+                  null 
+                  : 
+                  <>
+                    <div onClick={onProfileClick} className="flex items-center gap-2 bg-white/30 px-3 py-1.5 rounded-full cursor-pointer hover:bg-white/50 transition">
+                        <User size={14}/>
+                        <span className="font-bold text-xs md:text-sm whitespace-nowrap">{user?.name} <span className="hidden md:inline">선생님</span></span>
+                    </div>
+                    <button onClick={onOpenSettings} className="p-2 hover:bg-white/20 rounded-full transition"><Settings size={20}/></button>
+                    <button onClick={onNoticeClick} className="p-2 hover:bg-white/20 rounded-full transition relative">
+                        <Megaphone size={20}/>
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-50 rounded-full border border-[#FDE047]"></span>
+                    </button>
+                  </>
+                }
+              </div>
+            </header>
+          );
+        }
+
+        // Profile Modal
+        function ProfileModal({ user, onClose, onLogout }) {
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+                    <div className="bg-white rounded-2xl w-full max-w-[360px] shadow-2xl overflow-hidden animate-fade-in relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:opacity-80"><X size={24}/></button>
+                        <div className="bg-slate-900 p-6 text-center pt-10">
+                            <div className="w-20 h-20 bg-[#FDE047] rounded-full mx-auto flex items-center justify-center mb-3">
+                                <User size={40} className="text-slate-900"/>
+                            </div>
+                            <h3 className="text-white font-bold text-xl">{user.name} 선생님</h3>
+                            <p className="text-slate-400 text-xs mt-1">{user.center}</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">센터명</span>
+                                <span className="font-bold">{user.center}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">이름</span>
+                                <span className="font-bold">{user.name}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">성별</span>
+                                <span className="font-bold">{user.gender}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">나이</span>
+                                <span className="font-bold">만 {user.age}세</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">연락처</span>
+                                <span className="font-bold">{user.contact}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">이메일</span>
+                                <span className="font-bold">{user.email}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                                <span className="text-slate-500 font-bold">요금제</span>
+                                <span className="font-bold text-blue-600">{user.plan}</span>
+                            </div>
+                            <div className="flex justify-center mt-6">
+                                <button onClick={onLogout} className="text-xs px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition font-bold">로그아웃</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Notice Page Component - Supabase
+        function NoticePage({ onBack }) {
+            const [notices, setNotices] = useState([]);
+            const [expandedId, setExpandedId] = useState(null);
+            const [filter, setFilter] = useState('all');
+
+            useEffect(() => {
+                const fetchNotices = async () => {
+                    const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
+                    if(data) setNotices(keysToCamel(data));
+                }
+                fetchNotices();
+            }, []);
+
+            const toggleExpand = (id) => {
+                setExpandedId(expandedId === id ? null : id);
+            };
+
+            const getBadgeStyle = (type) => {
+                switch(type) {
+                    case '업데이트': return 'bg-blue-100 text-blue-700';
+                    case '점검': return 'bg-red-100 text-red-700';
+                    case '이벤트': return 'bg-purple-100 text-purple-700';
+                    default: return 'bg-slate-100 text-slate-700';
+                }
+            };
+
+            const filteredNotices = filter === 'all' ? notices : notices.filter(n => n.type === filter);
+
+            return (
+                <div className="w-full h-full bg-slate-50 flex flex-col animate-fade-in relative overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-white px-6 py-5 border-b border-slate-200 flex items-center gap-4 sticky top-0 z-10 shrink-0">
+                        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition"><ChevronLeft size={24}/></button>
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900">공지사항</h2>
+                            <p className="text-xs text-slate-500 font-medium">HAHA LAB의 새로운 소식과 업데이트를 확인하세요.</p>
+                        </div>
+                    </div>
+
+                    {/* Filter */}
+                    <div className="px-6 py-4 flex gap-2 overflow-x-auto scrollbar-hide shrink-0">
+                        {[{id:'all', l:'전체'}, {id:'업데이트', l:'업데이트'}, {id:'점검', l:'점검'}, {id:'이벤트', l:'이벤트'}, {id:'일반', l:'일반'}].map(f => (
+                            <button 
+                                key={f.id} 
+                                onClick={() => setFilter(f.id)} 
+                                className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition ${filter === f.id ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'}`}
+                            >
+                                {f.l}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* List */}
+                    <div className="flex-1 overflow-y-auto px-6 pb-20 space-y-4">
+                        {filteredNotices.length === 0 && (
+                            <div className="text-center py-20 text-slate-400">
+                                <Info size={48} className="mx-auto mb-4 opacity-50"/>
+                                <p>해당하는 공지사항이 없습니다.</p>
+                            </div>
+                        )}
+                        {filteredNotices.map(notice => (
+                            <div 
+                                key={notice.id} 
+                                onClick={() => toggleExpand(notice.id)}
+                                className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 cursor-pointer transition-all duration-300 hover:shadow-md ${expandedId === notice.id ? 'ring-2 ring-[#FDE047]' : 'hover:-translate-y-0.5'}`}
+                            >
+                                <div className="flex justify-between items-start gap-4">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${getBadgeStyle(notice.type)}`}>
+                                                {notice.type}
+                                            </span>
+                                            <span className="text-xs text-slate-400 font-medium">{notice.date}</span>
+                                        </div>
+                                        <h3 className={`font-bold text-lg leading-tight ${expandedId === notice.id ? 'text-slate-900' : 'text-slate-700'}`}>{notice.title}</h3>
+                                    </div>
+                                    <div className={`transition-transform duration-300 ${expandedId === notice.id ? 'rotate-180' : ''}`}>
+                                        <ChevronDown size={20} className="text-slate-400"/>
+                                    </div>
+                                </div>
+                                 
+                                <div 
+                                    className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedId === notice.id ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}
+                                >
+                                    <div 
+                                        className="pt-4 border-t border-slate-100 text-slate-600 text-sm leading-relaxed whitespace-pre-wrap"
+                                        dangerouslySetInnerHTML={{__html: notice.content}}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // Settings Modal
+        function SettingsModal({ settings, setSettings, onClose }) {
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+              <div className="bg-white rounded-2xl w-[90%] max-w-[400px] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                 <div className="bg-slate-900 text-white p-4 flex justify-between items-center"><h3 className="font-bold">설정</h3><button onClick={onClose}><X size={18}/></button></div>
+                 <div className="p-6 space-y-6">
+                    <div><label className="block font-bold mb-1">기본 수업 시간</label><input type="number" value={settings.defaultSessionTime} onChange={(e) => setSettings({...settings, defaultSessionTime: parseInt(e.target.value)})} className="border-2 rounded-lg px-4 py-2 w-full font-bold"/></div>
+                    
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <p className="font-bold text-slate-800">수업 시작 5분 전 알림</p>
+                        <p className="text-xs text-slate-400">수업 준비 알림을 받습니다.</p>
+                      </div>
+                      <KakaoSwitch isOn={settings.alertBefore5} onToggle={() => setSettings({...settings, alertBefore5: !settings.alertBefore5})} />
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <p className="font-bold text-slate-800">미완료 수업 알림</p>
+                        <p className="text-xs text-slate-400">종료 5분 후에도 미완료 시 알림.</p>
+                      </div>
+                      <KakaoSwitch isOn={settings.alertAfter5} onToggle={() => setSettings({...settings, alertAfter5: !settings.alertAfter5})} />
+                    </div>
+
+                    <div className="h-px bg-slate-100 my-2"></div>
+
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <p className="font-bold text-slate-800">수업 정지 내담자 표시</p>
+                        <p className="text-xs text-slate-400">목록에 정지된 내담자를 표시합니다.</p>
+                      </div>
+                      <KakaoSwitch isOn={settings.showPausedClients} onToggle={() => setSettings({...settings, showPausedClients: !settings.showPausedClients})} />
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <p className="font-bold text-slate-800">수업 종결 내담자 표시</p>
+                        <p className="text-xs text-slate-400">목록에 종결된 내담자를 표시합니다.</p>
+                      </div>
+                      <KakaoSwitch isOn={settings.showTerminatedClients} onToggle={() => setSettings({...settings, showTerminatedClients: !settings.showTerminatedClients})} />
+                    </div>
+                 </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Session Exit Password Modal
+        function SessionExitModal({ onClose, onConfirm, sessionType }) {
+          // ... (Same as before)
+          const [pw, setPw] = useState('');
+          const [err, setErr] = useState(false);
+
+          const handleConfirm = () => {
+            if (checkPassword(pw)) {
+              onConfirm();
+            } else {
+              setErr(true);
+              setPw('');
+            }
+          };
+
+          const typeText = sessionType === 'reserve' ? '상담' : '수업';
+
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl p-8 w-[90%] max-w-[400px] shadow-2xl text-center">
+                <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Lock size={32}/>
+                </div>
+                <h3 className="font-black text-2xl mb-2">{typeText} 종료 확인</h3>
+                <p className="text-slate-500 text-sm mb-6">{typeText}을 종료하고 홈으로 이동하시겠습니까?<br/>안전을 위해 비밀번호를 입력해주세요.</p>
+                
+                <input 
+                  type="password" 
+                  value={pw}
+                  onChange={(e) => { setPw(e.target.value); setErr(false); }}
+                  className={`w-full text-center text-2xl tracking-[0.5em] font-bold p-4 border-2 rounded-xl focus:outline-none mb-2 ${err ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-slate-900'}`}
+                  maxLength={4}
+                  placeholder="••••"
+                  autoFocus
+                />
+                {err && <p className="text-red-500 text-xs font-bold mb-4">비밀번호가 올바르지 않습니다.</p>}
+                
+                <div className="flex gap-2 mt-4">
+                  <button onClick={onClose} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">취소</button>
+                  <button onClick={handleConfirm} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold">종료하기</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // 6. CONSULTATION MODE (For Reserves)
+        function ConsultationMode({ session, client, onExit, onUpdateClient, showToast }) {
+            // ... (Same as before)
+            const [elapsed, setElapsed] = useState(0);
+            
+            useEffect(() => {
+                const start = new Date();
+                const timer = setInterval(() => {
+                    setElapsed(Math.floor((new Date() - start) / 1000));
+                }, 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            const formatTime = (seconds) => {
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            };
+
+            const handleConsultationComplete = (updatedData) => {
+                onUpdateClient(updatedData);
+                showToast("상담 내용이 저장되었습니다.");
+                onExit(); 
+            };
+            
+            // Custom exit confirm instead of window.confirm
+            const handleExitRequest = () => {
+                // If user wants to exit mid-session without saving, we could show a modal. 
+                // For now, just call onExit which triggers the exit modal in App.js
+                onExit(); 
+            };
+
+            return (
+                <div className="flex w-full h-full bg-slate-50 animate-fade-in">
+                    {/* Left: Timer Panel */}
+                    <div className="w-[280px] bg-slate-900 text-white flex flex-col items-center justify-center p-6 shrink-0 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-[#FDE047] animate-pulse"></div>
+                        <div className="text-center z-10">
+                            <div className="w-20 h-20 rounded-full border-4 border-[#FDE047] flex items-center justify-center mb-6 mx-auto">
+                                <Clock size={32} className="text-[#FDE047]"/>
+                            </div>
+                            <h2 className="text-3xl font-black mb-2 tracking-widest">{formatTime(elapsed)}</h2>
+                            <p className="text-slate-400 text-sm font-bold">상담 진행 중</p>
+                            <div className="mt-8 p-4 bg-slate-800 rounded-xl w-full">
+                                <p className="text-xs text-slate-400 mb-1">상담 대상</p>
+                                <p className="font-bold text-lg">{client?.name || session.clientName}</p>
+                            </div>
+                        </div>
+                        {/* Decorative */}
+                        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-[#FDE047]/10 rounded-full blur-2xl"></div>
+                    </div>
+
+                    {/* Right: Detail Edit Form */}
+                    <div className="flex-1 overflow-hidden relative bg-white">
+                        <ClientFormPage 
+                            type="reserve"
+                            initialData={client}
+                            defaultSessionTime={50}
+                            onClose={handleExitRequest}
+                            onSubmit={handleConsultationComplete}
+                            customTitle="상담 진행"
+                            customButtonText="상담 완료"
+                            isConsultationMode={true} // Add prop to handle specific logic if needed
+                            showToast={showToast}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        // 5. SESSION MODE (PLAY LAB - Supabase Connected)
+        function SessionMode({ session, onExit }) {
+          const [activeCategory, setActiveCategory] = useState(null);
+          const [contents, setContents] = useState([]);
+          const [searchTerm, setSearchTerm] = useState('');
+          const [showHashtags, setShowHashtags] = useState(false);
+           
+          // Content View State
+          const [activeContent, setActiveContent] = useState(null);
+          const [showCompleteModal, setShowCompleteModal] = useState(false);
+
+          useEffect(() => {
+              const fetchContents = async () => {
+                  const { data } = await supabase.from('play_contents').select('*').order('created_at', { ascending: false });
+                  if(data) setContents(keysToCamel(data));
+              }
+              fetchContents();
+          }, []);
+
+          const filteredContents = contents.filter(c => 
+            (!activeCategory || c.catId === activeCategory.id) &&
+            (c.title.includes(searchTerm) || (Array.isArray(c.tags) && c.tags.some(t => t.includes(searchTerm)))) &&
+            !c.isHidden
+          );
+
+          const getCategoryIcon = (id) => {
+            switch(id) {
+                case 'think': return <Brain size={18}/>;
+                case 'sound': return <Mic size={18}/>;
+                case 'listen': return <Ear size={18}/>;
+                case 'see': return <Eye size={18}/>;
+                case 'speak': return <MessageCircle size={18}/>;
+                case 'life': return <Smile size={18}/>;
+                case 'art': return <Palette size={18}/>;
+                default: return <Grid size={18}/>;
+            }
+          };
+
+          const handleCompleteConfirm = () => {
+            // Update View Count
+            if (activeContent) {
+                supabase.from('play_contents').update({ views: activeContent.views + 1 }).eq('id', activeContent.id).then(() => {});
+            }
+            setActiveContent(null);
+            setShowCompleteModal(false);
+          };
+
+          if (activeContent) {
+            const category = PLAY_CATEGORIES.find(c => c.id === activeContent.catId);
+            return (
+                <div className="flex flex-col w-full h-full bg-slate-50 relative animate-fade-in">
+                    {/* Sub-Header (Learning Bar) */}
+                    <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shadow-sm shrink-0">
+                        <div className="flex flex-col">
+                            <h2 className="font-bold text-lg leading-tight text-slate-900">{activeContent.title}</h2>
+                            <span className="text-xs text-slate-500 font-medium">{category?.title || '일반 학습'} &gt; {category?.sub || '기타'}</span>
+                        </div>
+                        <button 
+                            onClick={() => setShowCompleteModal(true)} 
+                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition"
+                        >
+                            <CheckCircle size={16}/> 학습 완료
+                        </button>
+                    </div>
+
+                    {/* Content Iframe */}
+                    <div className="flex-1 w-full h-full bg-white relative">
+                         <iframe 
+                            src={activeContent.url || "about:blank"} 
+                            title="Learning Content"
+                            className="w-full h-full border-0"
+                            allowFullScreen
+                          />
+                    </div>
+
+                    {/* Completion Modal */}
+                    {showCompleteModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in text-center">
+                                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Check size={24}/>
+                                </div>
+                                <h3 className="font-bold text-xl mb-2">학습을 완료하시겠습니까?</h3>
+                                <p className="text-slate-500 text-sm mb-6">학습 기록이 저장되고 콘텐츠 목록으로 이동합니다.</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowCompleteModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-slate-600">취소</button>
+                                    <button onClick={handleCompleteConfirm} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold">확인</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+          }
+
+          return (
+            <div className="flex flex-col md:flex-row w-full h-full bg-white animate-fade-in">
+              {/* PLAY LAB SIDEBAR */}
+              <div className="w-full md:w-[280px] h-auto md:h-full bg-[#FFFBEB] border-b md:border-b-0 md:border-r border-[#FDE047] flex flex-col z-10 shrink-0">
+                <div className="p-4 md:p-6 border-b border-[#FDE047]/30 flex justify-between items-center md:block">
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black mb-1">PLAY LAB</h2>
+                    <p className="text-xs text-slate-500 font-bold hidden md:block">맞춤형 학습 콘텐츠</p>
+                  </div>
+                  {/* Mobile Home Button */}
+                  <button onClick={onExit} className="md:hidden bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-lg hover:bg-slate-200 font-bold flex items-center justify-center gap-1">
+                      <ChevronLeft size={12}/> 종료
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-x-auto md:overflow-y-auto p-2 md:p-4 space-x-2 md:space-x-0 md:space-y-2 flex md:block scrollbar-hide">
+                  <button 
+                    onClick={() => setActiveCategory(null)}
+                    className={`w-full whitespace-nowrap py-3 px-4 rounded-xl font-bold text-left flex items-center gap-3 transition ${!activeCategory ? 'bg-slate-900 text-white shadow-lg' : 'hover:bg-white text-slate-600'}`}
+                  >
+                    <Grid size={18} /> <span className="text-sm">전체</span>
+                  </button>
+                  
+                  <div className="hidden md:block h-px bg-slate-200 my-2 mx-2"></div>
+
+                  {PLAY_CATEGORIES.map(cat => (
+                    <button 
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat)}
+                      className={`w-full whitespace-nowrap py-3 px-4 rounded-xl font-bold text-left transition text-sm flex items-center gap-3 ${activeCategory?.id === cat.id ? 'bg-white shadow-md text-slate-900 ring-2 ring-[#FDE047]' : 'text-slate-500 hover:bg-white/50'}`}
+                    >
+                      <span className={activeCategory?.id === cat.id ? 'text-slate-900' : 'text-slate-400'}>
+                          {getCategoryIcon(cat.id)}
+                      </span>
+                      {cat.title}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="hidden md:block p-4 border-t border-[#FDE047]/30 bg-[#FFFBEB]">
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-[#FDE047]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-8 h-8 rounded-full bg-[#FDE047] text-slate-900 font-bold flex items-center justify-center text-xs">
+                          {session?.clientName?.slice(0,1) || '게'}
+                        </span>
+                        <div>
+                          <p className="font-bold text-sm">{session?.clientName || '게스트'}</p>
+                          <p className="text-[10px] text-green-600 font-bold bg-green-100 px-1.5 py-0.5 rounded inline-block">수업 진행 중</p>
+                        </div>
+                     </div>
+                     <button onClick={onExit} className="w-full bg-slate-900 text-white text-xs py-3 rounded-lg hover:bg-slate-800 font-bold flex items-center justify-center gap-1 transition-colors">
+                       <LogOut size={12}/> 수업 종료
+                     </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 flex flex-col bg-white overflow-hidden relative">
+                <div className="h-auto md:h-16 border-b border-slate-100 flex flex-col md:flex-row items-center justify-between p-4 md:px-8 bg-white shrink-0 gap-3">
+                   <div className="flex items-center gap-4 w-full max-w-xl">
+                     <div className="relative w-full">
+                       <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                       <input 
+                         className="w-full pl-10 pr-4 py-2 bg-slate-50 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#FDE047]"
+                         placeholder="콘텐츠 제목, 태그 검색..."
+                         value={searchTerm}
+                         onChange={e => setSearchTerm(e.target.value)}
+                       />
+                     </div>
+                   </div>
+                   <div className="flex items-center justify-between w-full md:w-auto gap-4">
+                     {activeCategory && (
+                        <button onClick={() => setShowHashtags(true)} className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 bg-slate-50 px-3 py-1.5 rounded-full">
+                          <Filter size={14}/> <span className="hidden sm:inline">해시태그</span>
+                        </button>
+                     )}
+                     <span className="text-xs font-bold text-slate-400">총 {filteredContents.length}개</span>
+                   </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50">
+                   {activeCategory && (
+                     <div className="mb-6 md:mb-8 animate-fade-in">
+                       <div className={`inline-block px-3 py-1 rounded text-xs font-bold mb-2 ${activeCategory.color}`}>{activeCategory.sub}</div>
+                       <h2 className="text-2xl md:text-3xl font-black mb-2">{activeCategory.title}</h2>
+                       <p className="text-slate-500 text-sm max-w-2xl">{activeCategory.desc}</p>
+                     </div>
+                   )}
+
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                     {filteredContents.map(content => (
+                       <div key={content.id} onClick={() => setActiveContent(content)} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition group cursor-pointer overflow-hidden flex flex-col">
+                          <div className="aspect-[4/3] bg-slate-50 flex items-center justify-center relative">
+                              {content.thumbnail ? (
+                                  <img src={content.thumbnail} className="w-full h-full object-cover" />
+                              ) : (
+                                  <div className="text-3xl font-black text-slate-200 tracking-tighter group-hover:scale-110 transition">HAHA<br/>LAB</div>
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>
+                              <span className="absolute top-3 left-3 bg-[#FFFBEB] text-slate-900 text-[10px] font-bold px-2 py-1 rounded border border-[#FDE047]">
+                                {PLAY_CATEGORIES.find(c => c.id === content.catId)?.title}
+                              </span>
+                          </div>
+                          <div className="p-4 md:p-5 flex-1 flex flex-col">
+                              <h4 className="font-bold text-base md:text-lg mb-2 leading-tight group-hover:text-blue-600 transition">{content.title}</h4>
+                              <div className="mt-auto flex flex-wrap gap-1.5">
+                                {Array.isArray(content.tags) && content.tags.map(t => (
+                                  <span key={t} className="text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{t}</span>
+                                ))}
+                              </div>
+                          </div>
+                       </div>
+                     ))}
+                   </div>
+                </div>
+              </div>
+
+              {showHashtags && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowHashtags(false)}>
+                   <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-[500px] shadow-2xl" onClick={e => e.stopPropagation()}>
+                      <h3 className="font-bold text-xl mb-4">해시태그 필터</h3>
+                      <div className="flex flex-wrap gap-2 max-h-[60vh] overflow-y-auto">
+                         {['#기억력', '#순발력', '#인지재활', '#숫자', '#기초', '#수학', '#종이접기', '#창의력', '#소근육', '#동물', '#단어', '#말하기', '#관찰력', '#집중력', '#청각', '#음악', '#안전', '#사회성', '#청해력', '#이해'].map(tag => (
+                           <button 
+                             key={tag} 
+                             onClick={() => { setSearchTerm(tag); setShowHashtags(false); }}
+                             className="px-3 py-1.5 border rounded-full text-sm hover:bg-[#FDE047] hover:border-[#FDE047] hover:font-bold transition"
+                           >
+                             {tag}
+                           </button>
+                         ))}
+                      </div>
+                      <button onClick={() => setShowHashtags(false)} className="mt-6 w-full py-3 bg-slate-100 rounded-xl font-bold">닫기</button>
+                   </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // 4. DASHBOARD
+        function Dashboard({ clients, setClients, schedules, setSchedules, currentTime, settings, onStartSession, showToast, user, onDeleteSchedule }) {
+          const [rightPanel, setRightPanel] = useState({ type: 'calendar' }); 
+          const [dragItem, setDragItem] = useState(null); 
+          const [showScheduleModal, setShowScheduleModal] = useState(false);
+          const [selectedDateForSchedule, setSelectedDateForSchedule] = useState(null);
+          const [prefilledData, setPrefilledData] = useState(null);
+          const [conflictData, setConflictData] = useState(null); 
+          const [mobileTab, setMobileTab] = useState('schedule'); 
+
+          // Create Client in DB
+          const handleCreateClient = async (data) => {
+             const payload = {
+                 ...data,
+                 teacher_id: user.teacherId
+             };
+             
+             // keysToSnake를 사용하여 DB 컬럼명에 맞게 변환
+             const dbPayload = keysToSnake(payload);
+             
+             const { data: inserted, error } = await supabase.from('clients').insert([dbPayload]).select();
+             if (!error) {
+                 setClients([...clients, keysToCamel(inserted[0])]);
+                 setRightPanel({ type: 'calendar' });
+                 showToast('내담자가 등록되었습니다.');
+             } else {
+                 console.error("Supabase Error:", error);
+                 alert('등록 실패: ' + error.message);
+             }
+          };
+
+          // Update Client in DB
+          const handleUpdateClient = async (updatedClient) => {
+             const payload = keysToSnake(updatedClient);
+             const { error } = await supabase.from('clients').update(payload).eq('id', updatedClient.id);
+             if (!error) {
+                 setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+                 setRightPanel({ type: 'detail', client: updatedClient });
+                 showToast('정보가 수정되었습니다.');
+             }
+          };
+
+          const handleSaveClient = (data) => {
+              if (data.id) {
+                  handleUpdateClient(data);
+              } else {
+                  handleCreateClient(data);
+              }
+          };
+
+          const handleConvertClient = async (client) => {
+            if (confirm(`${client.name}님을 정규 내담자로 전환하시겠습니까?`)) {
+                const updated = { ...client, type: 'client' }; 
+                await handleUpdateClient(updated);
+                showToast(`${client.name}님이 정규 내담자로 등록되었습니다.`);
+            }
+          };
+
+          const handleGoToHistory = (schedule) => {
+              // [FIXED] Use string comparison to safely find client ID
+              const client = clients.find(c => String(c.id) === String(schedule.clientId));
+              if (client) {
+                  setRightPanel({ type: 'detail', client, initialTab: 'history' });
+              }
+          };
+
+          const resolveConflict = async (method) => {
+            if (!conflictData) return;
+            
+            const { newSchedule, conflicts, originalSchedule } = conflictData;
+            
+            if (method === 'push') {
+                // 전체 시간 밀기: 충돌된 스케줄들을 newSchedule 종료 시간 이후로 이동
+                const newEndTime = newSchedule.endTime;
+                const sortedConflicts = [...conflicts].sort((a, b) => a.startTime.localeCompare(b.startTime));
+                
+                let currentTime = newEndTime;
+                const updates = [];
+                
+                for (const conflict of sortedConflicts) {
+                    const [h, m] = conflict.startTime.split(':').map(Number);
+                    const [eh, em] = conflict.endTime.split(':').map(Number);
+                    const duration = (eh * 60 + em) - (h * 60 + m);
+                    
+                    const [ch, cm] = currentTime.split(':').map(Number);
+                    const newStart = currentTime;
+                    const endDate = new Date();
+                    endDate.setHours(ch, cm + duration);
+                    const newEnd = endDate.toTimeString().slice(0, 5);
+                    
+                    updates.push({ id: conflict.id, startTime: newStart, endTime: newEnd });
+                    currentTime = newEnd;
+                }
+                
+                // DB 업데이트
+                for (const update of updates) {
+                    await supabase.from('schedules').update({ start_time: update.startTime, end_time: update.endTime }).eq('id', update.id);
+                }
+                
+                // 새 스케줄 추가
+                const payload = keysToSnake({ ...newSchedule, teacherId: user.teacherId });
+                const { data, error } = await supabase.from('schedules').insert([payload]).select();
+                if (!error) {
+                    // 전체 스케줄 다시 불러오기
+                    const { data: allSchedules } = await supabase.from('schedules').select('*').eq('teacher_id', user.teacherId);
+                    setSchedules(keysToCamel(allSchedules));
+                    showToast('일정이 등록되고 기존 일정들이 조정되었습니다.');
+                }
+            } else if (method === 'adjust') {
+                // 시간 자동 단축: newSchedule의 종료 시간을 첫 번째 충돌 직전으로 단축
+                const sortedConflicts = [...conflicts].sort((a, b) => a.startTime.localeCompare(b.startTime));
+                const firstConflict = sortedConflicts[0];
+                const adjustedSchedule = { ...newSchedule, endTime: firstConflict.startTime };
+                
+                const payload = keysToSnake({ ...adjustedSchedule, teacherId: user.teacherId });
+                const { data, error } = await supabase.from('schedules').insert([payload]).select();
+                if (!error) {
+                    setSchedules(prev => [...prev, keysToCamel(data[0])]);
+                    showToast('일정이 자동 단축되어 등록되었습니다.');
+                }
+            } else if (method === 'manual') {
+                // 직접 설정: 스케줄 모달 열기
+                setPrefilledData({
+                    clientId: newSchedule.clientId,
+                    clientName: newSchedule.clientName,
+                    clientType: newSchedule.type,
+                    date: newSchedule.date,
+                    startTime: newSchedule.startTime
+                });
+                setSelectedDateForSchedule(new Date(newSchedule.date));
+                setShowScheduleModal(true);
+            }
+            
+            setConflictData(null);
+          };
+
+          const handleConflict = (data) => {
+              setConflictData(data);
+          };
+
+          return (
+            <div className="flex flex-col md:flex-row w-full h-full bg-white">
+              {/* Sidebar */}
+              <aside className="hidden md:flex w-[280px] min-w-[280px] h-full border-r border-slate-200 flex-col z-10 relative">
+                <ClientManager 
+                  clients={clients} 
+                  setDragItem={setDragItem}
+                  onNewClick={() => setRightPanel({ type: 'form_select' })}
+                  onClientClick={(client) => setRightPanel({ type: 'detail', client })}
+                  settings={settings}
+                />
+              </aside>
+
+              {/* Main */}
+              <main className="flex-1 flex flex-col h-full bg-white relative overflow-hidden">
+                {/* Mobile */}
+                <div className="md:hidden flex-1 flex flex-col h-full relative">
+                    {mobileTab === 'schedule' && rightPanel.type === 'calendar' && (
+                        <CalendarManager 
+                            schedules={schedules}
+                            setSchedules={setSchedules}
+                            clients={clients}
+                            dragItem={dragItem}
+                            currentTime={currentTime}
+                            onStartSession={onStartSession}
+                            showToast={showToast}
+                            onAddClick={(date) => {
+                                setPrefilledData(null); 
+                                setSelectedDateForSchedule(date);
+                                setShowScheduleModal(true);
+                            }}
+                            onConflict={handleConflict}
+                            user={user}
+                            onDeleteSchedule={onDeleteSchedule}
+                            onGoToHistory={handleGoToHistory}
+                        />
+                    )}
+                    {mobileTab === 'client' && (
+                        <ClientManager 
+                            forcedTab="client"
+                            clients={clients} 
+                            setDragItem={setDragItem}
+                            onNewClick={() => setRightPanel({ type: 'form_select' })}
+                            onClientClick={(client) => setRightPanel({ type: 'detail', client })}
+                            settings={settings}
+                        />
+                    )}
+                    {mobileTab === 'reserve' && (
+                        <ClientManager 
+                            forcedTab="reserve"
+                            clients={clients} 
+                            setDragItem={setDragItem}
+                            onNewClick={() => setRightPanel({ type: 'form_select' })}
+                            onClientClick={(client) => setRightPanel({ type: 'detail', client })}
+                            settings={settings}
+                        />
+                    )}
+                    
+                    {/* Mobile Modals Overlay (Form/Detail) */}
+                    {(rightPanel.type === 'form_select' || rightPanel.type === 'form' || rightPanel.type === 'detail') && (
+                        <div className="absolute inset-0 z-50 bg-white flex flex-col">
+                             {rightPanel.type === 'form_select' && <RegistrationTypeModal onSelect={(type) => setRightPanel({ type: 'form', formType: type })} onCancel={() => setRightPanel({ type: 'calendar' })} />}
+                             {rightPanel.type === 'form' && <ClientFormPage type={rightPanel.formType} initialData={rightPanel.initialData} defaultSessionTime={settings.defaultSessionTime} onClose={() => setRightPanel({ type: 'calendar' })} onSubmit={handleSaveClient} showToast={showToast} />}
+                             {rightPanel.type === 'detail' && (
+                                <ClientDetailPage 
+                                    key={rightPanel.client.id}
+                                    client={rightPanel.client} 
+                                    schedules={schedules} 
+                                    setSchedules={setSchedules} 
+                                    onClose={() => setRightPanel({ type: 'calendar' })} 
+                                    onUpdate={handleUpdateClient} 
+                                    onConvert={handleConvertClient} 
+                                    onDelete={async (id) => { 
+                                        await supabase.from('clients').delete().eq('id', id);
+                                        setClients(clients.filter(c => c.id !== id)); 
+                                        setRightPanel({ type: 'calendar' }); 
+                                    }} 
+                                    showToast={showToast} 
+                                    teacherName={user.name} 
+                                    onStartSession={onStartSession} 
+                                    onEdit={() => setRightPanel({ type: 'form', formType: rightPanel.client.type, initialData: rightPanel.client })}
+                                    initialTab={rightPanel.initialTab}
+                                />
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Desktop View */}
+                <div className="hidden md:flex flex-col h-full">
+                    {rightPanel.type === 'calendar' && (
+                      <CalendarManager 
+                        schedules={schedules}
+                        setSchedules={setSchedules}
+                        clients={clients}
+                        dragItem={dragItem}
+                        currentTime={currentTime}
+                        onStartSession={onStartSession}
+                        showToast={showToast}
+                        onAddClick={(date) => {
+                            setPrefilledData(null); 
+                            setSelectedDateForSchedule(date);
+                            setShowScheduleModal(true);
+                        }}
+                        onConflict={handleConflict}
+                        user={user}
+                        onDeleteSchedule={onDeleteSchedule}
+                        onGoToHistory={handleGoToHistory}
+                      />
+                    )}
+                    {rightPanel.type === 'form_select' && <RegistrationTypeModal onSelect={(type) => setRightPanel({ type: 'form', formType: type })} onCancel={() => setRightPanel({ type: 'calendar' })} />}
+                    {rightPanel.type === 'form' && <ClientFormPage type={rightPanel.formType} initialData={rightPanel.initialData} defaultSessionTime={settings.defaultSessionTime} onClose={() => setRightPanel({ type: 'calendar' })} onSubmit={handleSaveClient} showToast={showToast} />}
+                    {rightPanel.type === 'detail' && (
+                        <ClientDetailPage 
+                            key={rightPanel.client.id}
+                            client={rightPanel.client} 
+                            schedules={schedules} 
+                            setSchedules={setSchedules} 
+                            onClose={() => setRightPanel({ type: 'calendar' })} 
+                            onUpdate={handleUpdateClient} 
+                            onConvert={handleConvertClient} 
+                            onDelete={async (id) => { 
+                                await supabase.from('clients').delete().eq('id', id);
+                                setClients(clients.filter(c => c.id !== id)); 
+                                setRightPanel({ type: 'calendar' }); 
+                            }} 
+                            showToast={showToast} 
+                            teacherName={user.name} 
+                            onStartSession={onStartSession} 
+                            onEdit={() => setRightPanel({ type: 'form', formType: rightPanel.client.type, initialData: rightPanel.client })}
+                            initialTab={rightPanel.initialTab}
+                        />
+                    )}
+                </div>
+              </main>
+
+              {/* Mobile Bottom Tabs */}
+              <div className="md:hidden h-16 bg-white border-t border-slate-200 flex shrink-0 z-20">
+                  <button onClick={() => setMobileTab('client')} className={`flex-1 flex flex-col items-center justify-center gap-1 ${mobileTab==='client'?'text-slate-900 font-bold':'text-slate-400'}`}>
+                      <User size={20}/> <span className="text-[10px]">내담자</span>
+                  </button>
+                  <button onClick={() => setMobileTab('reserve')} className={`flex-1 flex flex-col items-center justify-center gap-1 ${mobileTab==='reserve'?'text-slate-900 font-bold':'text-slate-400'}`}>
+                      <CalendarIcon size={20}/> <span className="text-[10px]">예약자</span>
+                  </button>
+                  <button onClick={() => setMobileTab('schedule')} className={`flex-1 flex flex-col items-center justify-center gap-1 ${mobileTab==='schedule'?'text-slate-900 font-bold':'text-slate-400'}`}>
+                      <LayoutGrid size={20}/> <span className="text-[10px]">스케줄</span>
+                  </button>
+              </div>
+
+              {showScheduleModal && (
+                  <AddScheduleModal 
+                    clients={clients}
+                    schedules={schedules}
+                    initialDate={selectedDateForSchedule}
+                    prefilledData={prefilledData} 
+                    defaultDuration={settings.defaultSessionTime}
+                    onClose={() => setShowScheduleModal(false)}
+                    onSubmit={(newSchedules) => {
+                        setSchedules([...schedules, ...newSchedules]);
+                        setShowScheduleModal(false);
+                    }}
+                    onConflict={handleConflict}
+                    showToast={showToast}
+                    user={user}
+                  />
+              )}
+
+              {conflictData && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                      <div className="bg-white rounded-2xl w-full max-w-[400px] p-6 shadow-2xl animate-fade-in">
+                          <div className="text-center mb-6">
+                              <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3"><AlertTriangle size={24}/></div>
+                              <h3 className="font-bold text-xl mb-1">수업 시간 충돌</h3>
+                              <p className="text-slate-500 text-sm">해당 시간에 이미 수업이 존재합니다.<br/>어떻게 처리하시겠습니까?</p>
+                          </div>
+                          <div className="space-y-2">
+                              <button onClick={() => resolveConflict('push')} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex justify-between px-6 hover:bg-slate-800">
+                                  <span>전체 시간 밀기</span>
+                                  <span className="text-slate-400 text-xs font-normal mt-0.5">기존 수업들을 뒤로 이동</span>
+                              </button>
+                              <button onClick={() => resolveConflict('adjust')} className="w-full bg-white border border-slate-200 text-slate-800 py-3 rounded-xl font-bold flex justify-between px-6 hover:bg-slate-50">
+                                  <span>시간 자동 단축</span>
+                                  <span className="text-slate-400 text-xs font-normal mt-0.5">기존 수업 전까지 맞춤</span>
+                              </button>
+                              <button onClick={() => resolveConflict('manual')} className="w-full bg-white border border-slate-200 text-slate-800 py-3 rounded-xl font-bold flex justify-between px-6 hover:bg-slate-50">
+                                  <span>직접 설정</span>
+                                  <span className="text-slate-400 text-xs font-normal mt-0.5">상세 수정</span>
+                              </button>
+                              <button onClick={() => setConflictData(null)} className="w-full text-slate-400 font-bold py-2 mt-2 hover:text-slate-600">취소</button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+            </div>
+          );
+        }
+
+        // ClientManager
+        function ClientManager({ clients, setDragItem, onNewClick, onClientClick, forcedTab, settings }) {
+          const [tab, setTab] = useState(forcedTab || 'client'); 
+          const [searchTerm, setSearchTerm] = useState('');
+          
+          useEffect(() => {
+              if (forcedTab) setTab(forcedTab);
+          }, [forcedTab]);
+           
+          // Count only active clients (exclude paused/terminated/deleted)
+          const clientCount = clients.filter(c => c.type === 'client' && c.status === 'active').length;
+          const reserveCount = clients.filter(c => c.type === 'reserve' && c.status !== 'deleted').length;
+
+          // Filter logic for Display List (Includes Settings Toggle)
+          const filteredClients = clients.filter(c => {
+            if (c.type !== tab) return false;
+            if (c.status === 'deleted') return false;
+            
+            // Toggle Logic for Paused/Terminated
+            if (c.status === 'paused' && !settings?.showPausedClients) return false;
+            if (c.status === 'terminated' && !settings?.showTerminatedClients) return false;
+            
+            return c.name.includes(searchTerm);
+          });
+
+          const groupedClients = useMemo(() => {
+              const groups = {};
+              const sorted = [...filteredClients].sort((a, b) => a.name.localeCompare(b.name));
+              sorted.forEach(c => {
+                  const initial = getChosung(c.name);
+                  if (!groups[initial]) groups[initial] = [];
+                  groups[initial].push(c);
+              });
+              return groups;
+          }, [filteredClients]);
+
+          const initials = Object.keys(groupedClients).sort();
+
+          const scrollToInitial = (initial) => {
+              const el = document.getElementById(`group-${initial}`);
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+          };
+
+          return (
+            <div className="flex flex-col h-full relative">
+              {!forcedTab && (
+                  <div className="flex border-b border-slate-200 bg-white shrink-0">
+                    <button onClick={() => setTab('client')} className={`flex-1 py-4 font-bold text-sm transition-colors ${tab === 'client' ? 'text-slate-900 border-b-2 border-[#FDE047]' : 'text-slate-400'}`}>내담자 ({clientCount})</button>
+                    <button onClick={() => setTab('reserve')} className={`flex-1 py-4 font-bold text-sm transition-colors ${tab === 'reserve' ? 'text-slate-900 border-b-2 border-[#FDE047]' : 'text-slate-400'}`}>상담예약자 ({reserveCount})</button>
+                  </div>
+              )}
+              {forcedTab && (
+                  <div className="p-4 bg-white border-b border-slate-100 font-black text-lg">
+                      {forcedTab === 'client' ? `내담자 목록 (${clientCount})` : `상담 예약자 목록 (${reserveCount})`}
+                  </div>
+              )}
+
+              <div className="p-4 border-b border-slate-100 space-y-3 bg-white shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                  <input type="text" placeholder="이름 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-100 pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FDE047]"/>
+                </div>
+                <button onClick={onNewClick} className="w-full bg-slate-900 text-white py-2 rounded-lg text-sm font-bold hover:bg-slate-700 transition flex items-center justify-center gap-2"><Plus size={16} /> 신규 등록</button>
+              </div>
+
+              <div className="flex-1 flex overflow-hidden">
+                  <div className="flex-1 overflow-y-auto p-2 bg-slate-50 relative scroll-smooth no-scrollbar">
+                     {initials.length === 0 && <div className="text-center text-slate-400 mt-10 text-sm">등록된 목록이 없습니다.</div>}
+                     {initials.map(initial => (
+                         <div key={initial} id={`group-${initial}`} className="mb-4">
+                             <div className="text-xs font-bold text-slate-400 px-2 mb-1 sticky top-0 bg-slate-50 z-10">{initial}</div>
+                             <div className="space-y-2">
+                                {groupedClients[initial].map(client => (
+                                    <div key={client.id} draggable onDragStart={(e) => { setDragItem({ type: 'client', data: client }); e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'client', data: client })); }} onClick={() => onClientClick(client)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:border-[#FDE047] cursor-pointer hover:shadow-md transition group">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded text-white mr-2 ${client.gender === '남' ? 'bg-blue-500' : 'bg-pink-500'}`}>{client.gender}</span>
+                                                <span className={`font-bold text-lg ${(client.status === 'terminated' || client.status === 'paused') ? 'text-gray-400' : 'text-slate-900'}`}>{client.name}</span>
+                                                {client.status === 'terminated' && <span className="ml-2 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-bold">수업종결</span>}
+                                                {client.status === 'paused' && <span className="ml-2 text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-bold">수업정지</span>}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-slate-500 space-y-1"><p>{client.dob} (만 {client.age}세)</p></div>
+                                    </div>
+                                ))}
+                             </div>
+                         </div>
+                     ))}
+                  </div>
+
+                  <div className="w-8 flex flex-col justify-center items-center py-2 bg-white border-l border-slate-100">
+                      <div className="flex flex-col gap-1 w-full text-center h-full justify-between">
+                          {['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'].map(char => (
+                              <button key={char} onClick={() => scrollToInitial(char)} className="text-[10px] font-bold text-slate-400 hover:text-slate-900 hover:scale-125 transition py-0.5">{char}</button>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+            </div>
+          );
+        }
+
+        function CalendarManager({ schedules, setSchedules, clients, dragItem, currentTime, onStartSession, onAddClick, showToast, onConflict, user, onDeleteSchedule, onGoToHistory }) {
+          const [viewMode, setViewMode] = useState('month'); 
+          const [currentDate, setCurrentDate] = useState(new Date());
+          const [selectedSchedule, setSelectedSchedule] = useState(null); 
+          const scrollRef = useRef(null);
+
+          const todayStr = formatDateLocal(new Date());
+           
+          const upcomingSchedules = useMemo(() => {
+              const allToday = schedules
+                .filter(s => s.date === todayStr && s.status !== 'deleted')
+                .sort((a,b) => new Date(a.date+'T'+a.startTime) - new Date(b.date+'T'+b.startTime));
+              
+              if (window.innerWidth < 768) {
+                  const completed = allToday.filter(s => s.status === 'completed' || s.status === 'noshow').pop(); 
+                  const upcoming = allToday.find(s => s.status === 'scheduled' || s.status === 'in-progress'); 
+                  const list = [];
+                  if (completed) list.push(completed);
+                  if (upcoming) list.push(upcoming);
+                  if (list.length < 2 && !completed) {
+                      const nextUpcoming = allToday.filter(s => s.status === 'scheduled').slice(0, 2);
+                      return nextUpcoming;
+                  }
+                  return list;
+              }
+              return allToday;
+          }, [schedules, todayStr]);
+
+          const handleToday = () => setCurrentDate(new Date());
+
+          const handleMoreClick = () => {
+              setViewMode('day');
+              setCurrentDate(new Date());
+              setTimeout(() => {
+                  if (scrollRef.current) {
+                      const now = new Date();
+                      const offset = (now.getHours() - 9) * 80;
+                      scrollRef.current.scrollTop = Math.max(0, offset);
+                  }
+              }, 100);
+          };
+
+          const handleScheduleClick = (sch) => setSelectedSchedule(sch);
+
+          const handleStatusChange = async (id, status, memo = '') => {
+              const { error } = await supabase.from('schedules').update({ status, memo }).eq('id', id);
+              if(!error) {
+                 setSchedules(prev => prev.map(s => s.id === id ? { ...s, status, memo: memo || s.memo } : s));
+                 setSelectedSchedule(null);
+              }
+          };
+
+          const handleReschedule = async (id, date, time) => {
+              const { error } = await supabase.from('schedules').update({ date, start_time: time }).eq('id', id);
+              if(!error) {
+                  setSchedules(prev => prev.map(s => s.id === id ? { ...s, date, startTime: time } : s));
+                  setSelectedSchedule(null);
+              }
+          };
+
+          const calculateEndTime = (start, duration) => {
+              const [h, m] = start.split(':').map(Number);
+              const d = new Date(); d.setHours(h, m + duration);
+              return d.toTimeString().slice(0, 5);
+          };
+
+          const handleDrop = async (targetDate, targetTime) => {
+            if (!dragItem) return;
+
+            if (!targetTime) {
+                const now = new Date();
+                targetTime = now.toTimeString().slice(0, 5);
+            }
+
+            if (dragItem.type === 'client') {
+               const client = dragItem.data;
+               const newEndTime = calculateEndTime(targetTime, client.sessionTime || 50);
+               
+               const conflicts = schedules.filter(s => 
+                   s.date === targetDate && s.status !== 'deleted' && s.status !== 'noshow' &&
+                   checkTimeOverlap(targetTime, newEndTime, s.startTime, s.endTime)
+               );
+
+               if (conflicts.length > 0) {
+                   const newSch = {
+                     clientId: client.id, clientName: client.name, type: client.type,
+                     date: targetDate, startTime: targetTime, endTime: newEndTime, status: 'scheduled'
+                   };
+                   onConflict({ newSchedule: newSch, conflicts });
+               } else {
+                   const payload = {
+                     teacher_id: user.teacherId,
+                     client_id: client.id, client_name: client.name, type: client.type,
+                     date: targetDate, start_time: targetTime, end_time: newEndTime, status: 'scheduled'
+                   };
+                   const { data, error } = await supabase.from('schedules').insert([payload]).select();
+                   if(!error) setSchedules(prev => [...prev, keysToCamel(data[0])]);
+               }
+            } else if (dragItem.type === 'schedule') {
+               const schedule = dragItem.data;
+               const [oldH, oldM] = schedule.startTime.split(':').map(Number);
+               const [oldEH, oldEM] = schedule.endTime.split(':').map(Number);
+               const durationMins = (oldEH * 60 + oldEM) - (oldH * 60 + oldM);
+               
+               const [newH, newM] = targetTime.split(':').map(Number);
+               const newEndDate = new Date(); newEndDate.setHours(newH, newM + durationMins);
+               const newEndTime = newEndDate.toTimeString().slice(0, 5);
+
+               const conflicts = schedules.filter(s => 
+                   s.id !== schedule.id && s.date === targetDate && s.status !== 'deleted' && s.status !== 'noshow' &&
+                   checkTimeOverlap(targetTime, newEndTime, s.startTime, s.endTime)
+               );
+
+               if (conflicts.length > 0) {
+                   const newSch = { ...schedule, date: targetDate, startTime: targetTime, endTime: newEndTime };
+                   onConflict({ newSchedule: newSch, conflicts, originalSchedule: schedule });
+               } else {
+                   const { error } = await supabase.from('schedules').update({ date: targetDate, start_time: targetTime, end_time: newEndTime }).eq('id', schedule.id);
+                   if(!error) setSchedules(prev => prev.map(s => s.id === schedule.id ? { ...s, date: targetDate, startTime: targetTime, endTime: newEndTime } : s));
+               }
+            }
+          };
+
+          return (
+            <div className="flex flex-col h-full animate-fade-in">
+              <div className="bg-slate-50 border-b border-slate-100 p-4 flex gap-4 overflow-x-auto shrink-0 items-stretch">
+                {upcomingSchedules.length === 0 && <div className="text-slate-400 font-medium p-4 flex items-center">금일 예정된 수업이 없습니다.</div>}
+                {upcomingSchedules.map(sch => (
+                   <div 
+                     key={sch.id} 
+                     onClick={() => sch.status === 'completed' ? onGoToHistory(sch) : handleScheduleClick(sch)}
+                     className={`bg-white rounded-xl shadow-sm p-4 min-w-[240px] border-l-4 relative group transition-all flex flex-col justify-center ${sch.status === 'noshow' ? 'border-red-400 opacity-80' : sch.status === 'completed' ? 'border-slate-400 bg-slate-50' : 'border-[#FDE047] cursor-pointer hover:shadow-md hover:-translate-y-0.5'}`}
+                   >
+                      <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                              <p className={`text-xs font-bold mb-1 ${sch.status==='noshow'?'text-red-500': sch.status==='completed'?'text-slate-400':'text-orange-500'}`}>{sch.status === 'noshow' ? '미출석' : sch.status === 'completed' ? '완료됨' : (sch.type === 'reserve' ? '상담' : 'TODAY')}</p>
+                              <div className="flex items-center gap-2">
+                                  <p className={`font-black text-lg ${sch.status === 'completed' ? 'text-slate-400' : 'text-slate-900'}`}>{sch.clientName}</p>
+                                  {sch.status === 'completed' && <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded font-bold">{sch.type === 'reserve' ? '상담완료' : '수업완료'}</span>}
+                              </div>
+                          </div>
+                      </div>
+                      <p className={`text-xs font-mono ${sch.status === 'completed' ? 'text-slate-400' : 'text-slate-600'}`}>{sch.startTime} ~ {sch.endTime}</p>
+                   </div>
+                ))}
+                <button onClick={handleMoreClick} className="bg-white rounded-xl shadow-sm p-4 min-w-[100px] flex flex-col items-center justify-center hover:bg-slate-100 transition"><CalendarDays size={24} className="text-slate-400 mb-1"/><span className="text-xs font-bold text-slate-500">더보기</span></button>
+              </div>
+
+              <div className="p-4 flex justify-between items-center bg-white border-b border-slate-100">
+                <div className="flex items-center gap-4">
+                   <div className="flex bg-slate-100 rounded-lg p-1">
+                     <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-1 hover:bg-white rounded"><ChevronLeft size={20}/></button>
+                     <button onClick={handleToday} className="px-3 text-xs font-bold hover:bg-white rounded">오늘</button>
+                     <button onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-1 hover:bg-white rounded"><ChevronRight size={20}/></button>
+                   </div>
+                   <h2 className="text-2xl font-black">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 {viewMode === 'day' && ` ${currentDate.getDate()}일`}</h2>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={() => onAddClick(new Date())} className="bg-[#FDE047] px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-300 shadow-sm">
+                        <Plus size={16}/> 
+                        <span className="hidden md:inline">수업 등록</span>
+                        <span className="md:hidden">수업</span>
+                    </button>
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                        {['month', 'week', 'day'].map(m => (<button key={m} onClick={() => setViewMode(m)} className={`px-4 py-1.5 rounded-md text-sm font-bold capitalize ${viewMode === m ? 'bg-white shadow' : 'text-slate-500'}`}>{m === 'month' ? '월간' : m === 'week' ? '주간' : '일간'}</button>))}
+                    </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-hidden relative flex flex-col">
+                {viewMode === 'month' ? (
+                     <MonthView currentDate={currentDate} schedules={schedules} onCellClick={onAddClick} onScheduleClick={handleScheduleClick} onDrop={handleDrop} onGoToHistory={onGoToHistory} />
+                ) : (
+                     <TimeGridView mode={viewMode} currentDate={currentDate} schedules={schedules} onCellClick={onAddClick} onScheduleClick={handleScheduleClick} scrollRef={scrollRef} onDrop={handleDrop} onGoToHistory={onGoToHistory} />
+                )}
+              </div>
+
+              <footer className="bg-slate-50 border-t p-3 text-center text-xs text-slate-400 font-medium">© 2026 HAHA LAB Corp. All rights reserved.</footer>
+
+              {selectedSchedule && <ScheduleActionModal schedule={selectedSchedule} onClose={() => setSelectedSchedule(null)} onStart={() => { onStartSession(selectedSchedule); setSelectedSchedule(null); }} onNoShow={() => handleStatusChange(selectedSchedule.id, 'noshow')} onChange={handleReschedule} showToast={showToast} onDelete={() => onDeleteSchedule(selectedSchedule.id)} />}
+            </div>
+          );
+        }
+
+        // Updated Month View
+        function MonthView({ currentDate, schedules, onCellClick, onScheduleClick, onDrop, onGoToHistory }) {
+          const { days, weeks } = useMemo(() => {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const first = new Date(year, month, 1);
+            const last = new Date(year, month + 1, 0);
+            const result = [];
+             
+            for (let i = 0; i < first.getDay(); i++) result.push({ date: null }); 
+            for (let i = 1; i <= last.getDate(); i++) result.push({ date: new Date(year, month, i), isCurrent: true });
+            
+            const totalDays = result.length;
+            const remaining = (7 - (totalDays % 7)) % 7;
+            for (let i = 1; i <= remaining; i++) result.push({ date: null });
+
+            const numWeeks = Math.ceil(result.length / 7);
+            return { days: result, weeks: numWeeks };
+          }, [currentDate]);
+
+          const todayStr = formatDateLocal(new Date());
+
+          return (
+            <div className="flex-1 grid grid-cols-7 h-full" style={{ gridTemplateRows: `auto repeat(${weeks}, 1fr)` }}>
+              {['일','월','화','수','목','금','토'].map(d => (<div key={d} className="bg-slate-50 p-2 text-center text-xs font-bold text-slate-500 border-b border-r border-slate-200">{d}</div>))}
+              {days.map((day, idx) => {
+                  if (!day.date) return <div key={idx} className="bg-slate-50/20 border-b border-r border-slate-100"></div>;
+
+                  const dateStr = formatDateLocal(day.date);
+                  const daySch = schedules
+                    .filter(s => s.date === dateStr)
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+                  const isToday = dateStr === todayStr;
+                  
+                  return (
+                    <div 
+                      key={idx}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => onDrop(dateStr)}
+                      onClick={() => onCellClick(day.date)}
+                      className={`border-b border-r border-slate-100 p-1 relative hover:bg-yellow-50/30 transition-colors cursor-pointer flex flex-col bg-white ${isToday ? 'bg-yellow-50 ring-2 ring-inset ring-[#FDE047]' : ''}`}
+                    >
+                      <div className="flex justify-between items-start">
+                          <span className={`text-sm font-bold ml-1 mt-1 flex items-center justify-center w-6 h-6 rounded-full ${isToday ? 'bg-slate-900 text-[#FDE047]' : day.date.getDay()===0 ? 'text-red-400' : ''}`}>{day.date.getDate()}</span>
+                          {isToday && <span className="text-[10px] font-bold text-slate-400 mr-1 mt-1">오늘</span>}
+                      </div>
+                      <div className="flex-1 overflow-hidden space-y-1 mt-1">
+                        {daySch.map(s => (
+                          <div 
+                            key={s.id} 
+                            draggable
+                            onDragStart={(e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'schedule', data: s })); }}
+                            onClick={(e) => { e.stopPropagation(); s.status === 'completed' ? onGoToHistory(s) : onScheduleClick(s); }}
+                            className={`text-[10px] px-1 py-0.5 rounded truncate font-medium hover:scale-105 transition cursor-pointer ${s.status==='completed'?'bg-slate-200 text-slate-500': s.type==='reserve'?'bg-purple-100 text-purple-800': s.status==='noshow'?'bg-red-100 text-red-800 line-through':'bg-yellow-100 text-slate-900'}`}
+                          >
+                            {s.startTime} {s.type === 'reserve' ? (s.status === 'completed' ? '상담완료' : '상담') : (s.status === 'completed' ? '수업완료' : '')} {s.clientName}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+              })}
+            </div>
+          );
+        }
+
+        // Time Grid View
+        function TimeGridView({ mode, currentDate, schedules, onCellClick, onScheduleClick, scrollRef, onDrop, onGoToHistory }) {
+          const hours = Array.from({ length: 14 }, (_, i) => i + 9);
+          const days = useMemo(() => {
+              if (mode === 'day') return [currentDate];
+              const start = new Date(currentDate);
+              start.setDate(currentDate.getDate() - currentDate.getDay());
+              return Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(start);
+                  d.setDate(start.getDate() + i);
+                  return d;
+              });
+          }, [mode, currentDate]);
+
+          const todayStr = formatDateLocal(new Date());
+
+          return (
+              <div className="flex-1 flex flex-col overflow-hidden h-full">
+                  <div className="flex border-b border-slate-200">
+                      <div className="w-16 shrink-0 bg-slate-50 border-r border-slate-200"></div>
+                      {days.map((d, i) => {
+                          const dateStr = formatDateLocal(d);
+                          const isToday = dateStr === todayStr;
+                          return (
+                              <div key={i} className={`flex-1 text-center py-2 border-r border-slate-100 last:border-0 ${isToday ? 'bg-yellow-50' : 'bg-white'}`}>
+                                  <div className={`text-xs font-bold ${d.getDay()===0?'text-red-500':'text-slate-500'}`}>{['일','월','화','수','목','금','토'][d.getDay()]}</div>
+                                  <div className={`text-lg font-black ${isToday ? 'text-slate-900' : ''}`}>{d.getDate()}</div>
+                              </div>
+                          );
+                      })}
+                  </div>
+                  <div className="flex-1 overflow-y-auto relative bg-white" ref={scrollRef}>
+                      {hours.map(h => (
+                          <div key={h} className="flex h-20 border-b border-slate-100">
+                              <div className="w-16 shrink-0 bg-slate-50 border-r border-slate-200 text-xs text-slate-400 text-center pt-2">{h}:00</div>
+                              {days.map((d, i) => {
+                                  const dateStr = formatDateLocal(d);
+                                  const timeStr = `${h.toString().padStart(2,'0')}:00`;
+                                  return (
+                                      <div 
+                                        key={i} 
+                                        className="flex-1 border-r border-slate-100 relative group" 
+                                        onClick={() => onCellClick(d)}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={() => onDrop(dateStr, timeStr)}
+                                      >
+                                          <div className="absolute top-1/2 w-full border-t border-slate-50 border-dashed"></div>
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      ))}
+                      
+                      {days.map((d, colIndex) => {
+                          const dateStr = formatDateLocal(d);
+                          const daySchedules = schedules.filter(s => s.date === dateStr);
+                          return daySchedules.map(s => {
+                              const [h, m] = s.startTime.split(':').map(Number);
+                              const [eh, em] = s.endTime.split(':').map(Number);
+                              if (h < 9 || h > 22) return null; 
+                              const top = ((h - 9) * 80) + (m / 60 * 80); 
+                              const durationMins = ((eh * 60) + em) - ((h * 60) + m);
+                              const height = (durationMins / 60) * 80;
+                              return (
+                                  <div 
+                                      key={s.id}
+                                      onClick={(e) => { e.stopPropagation(); s.status === 'completed' ? onGoToHistory(s) : onScheduleClick(s); }}
+                                      draggable
+                                      onDragStart={(e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'schedule', data: s })); }}
+                                      className={`absolute mx-1 rounded p-1 text-[10px] font-bold shadow-sm border-l-4 overflow-hidden hover:z-10 hover:scale-105 transition cursor-pointer ${s.status === 'completed' ? 'bg-slate-200 border-slate-400 text-slate-500' : s.status === 'noshow' ? 'bg-red-100 border-red-500 text-red-900 opacity-70' : s.type === 'reserve' ? 'bg-purple-100 border-purple-500 text-purple-900' : 'bg-yellow-100 border-yellow-500 text-slate-900'}`}
+                                      style={{ top: `${top}px`, height: `${height}px`, left: `calc(4rem + ${(100 - 4)/days.length * colIndex}%)`, width: `calc((100% - 4rem) / ${days.length} - 8px)` }}
+                                  >
+                                      {s.startTime} {s.clientName} {s.status === 'completed' ? (s.type === 'reserve' ? '(상담완료)' : '(수업완료)') : ''}
+                                  </div>
+                              );
+                          });
+                      })}
+                  </div>
+              </div>
+          );
+        }
+
+        // Add Schedule Modal
+        function AddScheduleModal({ clients, schedules, initialDate, defaultDuration, onClose, onSubmit, showToast, onConflict, prefilledData, user }) {
+            const [targetType, setTargetType] = useState('client');
+            const [targetId, setTargetId] = useState('');
+            const [mode, setMode] = useState('single'); 
+            const [singleDate, setSingleDate] = useState(initialDate ? formatDateLocal(initialDate) : formatDateLocal(new Date()));
+            const [singleTime, setSingleTime] = useState('14:00');
+            const [weekDays, setWeekDays] = useState({ 1: false, 2: false, 3: false, 4: false, 5: false, 6: false, 0: false });
+            const [weekTimes, setWeekTimes] = useState({ 1: '14:00', 2: '14:00', 3: '14:00', 4: '14:00', 5: '14:00', 6: '14:00', 0: '14:00' });
+            const [selectedDates, setSelectedDates] = useState([]);
+            const [monthlyTime, setMonthlyTime] = useState('14:00');
+            const [isRepeat, setIsRepeat] = useState(false);
+            const [endDate, setEndDate] = useState('');
+
+            // [MODIFIED] Use loose or string comparison for finding target client to handle type mismatch
+            const targetClient = clients.find(c => String(c.id) === String(targetId));
+
+            useEffect(() => {
+                if (prefilledData) {
+                    setTargetType(prefilledData.clientType || 'client');
+                    setTargetId(prefilledData.clientId || '');
+                    setMode('single');
+                    if (prefilledData.date) setSingleDate(prefilledData.date);
+                    if (prefilledData.startTime) setSingleTime(prefilledData.startTime);
+                }
+            }, [prefilledData]);
+
+            const toggleDate = (dateStr) => {
+                if(selectedDates.includes(dateStr)) setSelectedDates(selectedDates.filter(d => d !== dateStr));
+                else setSelectedDates([...selectedDates, dateStr]);
+            };
+
+            const handleRegister = async () => {
+                if (!targetId) { showToast('대상을 선택해주세요.'); return; }
+                if (mode === 'single' && !singleDate) { showToast('날짜를 입력해주세요.'); return; }
+                if (mode === 'weekly') {
+                    const days = Object.keys(weekDays).filter(d => weekDays[d]);
+                    if(days.length === 0) { showToast('요일을 하나 이상 선택해주세요.'); return; }
+                }
+                if (mode === 'monthly' && selectedDates.length === 0) { showToast('날짜를 선택해주세요.'); return; }
+
+                const newSchedules = [];
+                // Check if targetClient exists. Since we filter drop-down, it should exist, but safety first.
+                if (!targetClient) { showToast('유효하지 않은 대상입니다.'); return; }
+                
+                const baseClient = { teacher_id: user.teacherId, client_id: targetClient.id, client_name: targetClient.name, type: targetClient.type };
+
+                const createSch = (dStr, tStr) => {
+                    const [h, m] = tStr.split(':').map(Number);
+                    const endTimeDate = new Date(); endTimeDate.setHours(h, m + (targetClient.sessionTime || defaultDuration));
+                    return { 
+                        ...baseClient, date: dStr, start_time: tStr, end_time: endTimeDate.toTimeString().slice(0, 5), status: 'scheduled' 
+                    };
+                };
+
+                const generateList = [];
+
+                if (mode === 'single') {
+                    generateList.push({d: singleDate, t: singleTime});
+                    if (isRepeat) {
+                       for(let i=1; i<=4; i++) {
+                           const d = new Date(singleDate); d.setDate(d.getDate() + (i*7));
+                           const dStr = formatDateLocal(d);
+                           if (endDate && d > new Date(endDate)) break;
+                           generateList.push({d: dStr, t: singleTime});
+                       }
+                    }
+                } else if (mode === 'weekly') {
+                    const days = Object.keys(weekDays).filter(d => weekDays[d]).map(Number);
+                    const limit = isRepeat ? 30 : 7;
+                    const start = new Date();
+                    for(let i=0; i<limit; i++) {
+                        const d = new Date(start); d.setDate(d.getDate() + i);
+                        if (endDate && d > new Date(endDate)) break;
+                        if (days.includes(d.getDay())) {
+                            generateList.push({d: formatDateLocal(d), t: weekTimes[d.getDay()]});
+                        }
+                    }
+                } else if (mode === 'monthly') {
+                    selectedDates.forEach(dStr => {
+                        generateList.push({d: dStr, t: monthlyTime});
+                        if (isRepeat) {
+                            for(let i=1; i<=3; i++) { 
+                                const d = new Date(dStr); d.setMonth(d.getMonth() + i);
+                                const nextDStr = formatDateLocal(d);
+                                if (endDate && d > new Date(endDate)) break;
+                                generateList.push({d: nextDStr, t: monthlyTime});
+                            }
+                        }
+                    });
+                }
+
+                // Insert to DB
+                const { data, error } = await supabase.from('schedules').insert(generateList.map(item => createSch(item.d, item.t))).select();
+                
+                if (!error) {
+                    onSubmit(keysToCamel(data));
+                } else {
+                    alert("등록 실패: " + error.message);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-[500px] p-6 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-xl">수업 등록</h3><button onClick={onClose}><X size={20}/></button></div>
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 p-4 rounded-xl">
+                                <div className="flex gap-4 mb-3">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                            type="radio" 
+                                            checked={targetType==='client'} 
+                                            onChange={()=>{ setTargetType('client'); setTargetId(''); }} 
+                                            className="accent-slate-900"
+                                        /> 
+                                        <span className="text-sm font-bold">내담자</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                            type="radio" 
+                                            checked={targetType==='reserve'} 
+                                            onChange={()=>{ setTargetType('reserve'); setTargetId(''); }} 
+                                            className="accent-slate-900"
+                                        /> 
+                                        <span className="text-sm font-bold">상담 예약자</span>
+                                    </label>
+                                </div>
+                                <select className="w-full border p-2 rounded-lg bg-white" value={targetId} onChange={e=>setTargetId(e.target.value)}>
+                                    <option value="">대상을 선택하세요</option>
+                                    {clients.filter(c=>c.type===targetType && c.status !== 'terminated' && c.status !== 'paused').map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                {[{id:'single',l:'하루 수업'},{id:'weekly',l:'요일 반복'},{id:'monthly',l:'날짜 지정'}].map(m=><button key={m.id} onClick={()=>setMode(m.id)} className={`flex-1 py-2 rounded-md text-sm font-bold transition ${mode===m.id?'bg-white shadow text-slate-900':'text-slate-400'}`}>{m.l}</button>)}
+                            </div>
+                            <div className="border p-4 rounded-xl">
+                                {mode === 'single' && <div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-slate-500 mb-1 block">날짜</label><input type="date" className="w-full border p-2 rounded-lg" value={singleDate} onChange={e=>setSingleDate(e.target.value)}/></div><div><label className="text-xs font-bold text-slate-500 mb-1 block">시작 시간</label><input type="time" className="w-full border p-2 rounded-lg" value={singleTime} onChange={e=>setSingleTime(e.target.value)}/></div></div>}
+                                {mode === 'weekly' && <div className="space-y-3"><p className="text-xs font-bold text-slate-500">요일 선택 및 시간 설정</p>{['일','월','화','수','목','금','토'].map((d, i) => (<div key={i} className={`flex items-center gap-3 p-2 rounded-lg ${weekDays[i] ? 'bg-yellow-50 border border-yellow-200' : 'bg-slate-50'}`}><input type="checkbox" checked={weekDays[i]} onChange={e=>setWeekDays({...weekDays, [i]: e.target.checked})} className="w-4 h-4 accent-slate-900"/><span className={`w-8 text-sm font-bold ${i===0?'text-red-500':'text-slate-700'}`}>{d}</span><input type="time" disabled={!weekDays[i]} value={weekTimes[i]} onChange={e=>setWeekTimes({...weekTimes, [i]: e.target.value})} className="border p-1 rounded bg-white text-sm disabled:opacity-50"/></div>))}</div>}
+                                {mode === 'monthly' && <div><div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-slate-500">날짜 다중 선택</span><input type="time" className="border p-1 rounded text-sm" value={monthlyTime} onChange={e=>setMonthlyTime(e.target.value)}/></div><div className="grid grid-cols-7 gap-1 text-center bg-slate-50 p-2 rounded-lg">{Array.from({length:30},(_,i)=>i+1).map(d=>{const dStr = formatDateLocal(new Date(new Date().setDate(d)));const isSel = selectedDates.includes(dStr);return <button key={d} onClick={()=>toggleDate(dStr)} className={`p-2 text-sm rounded ${isSel?'bg-slate-900 text-white':'hover:bg-slate-200'}`}>{d}</button>})}</div><p className="text-right text-xs text-slate-400 mt-2">{selectedDates.length}개 날짜 선택됨</p></div>}
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl space-y-3"><div className="flex justify-between items-center"><span className="font-bold text-sm">반복 설정</span><KakaoSwitch isOn={isRepeat} onToggle={()=>setIsRepeat(!isRepeat)} /></div>{isRepeat && <div className="animate-fade-in space-y-2"><div className="text-xs text-slate-500 font-bold">{mode === 'monthly' ? '매월 같은 날짜에 반복' : '매주 같은 요일에 반복'}</div><div className="flex items-center gap-2"><span className="text-sm">종료 날짜:</span><input type="date" className="border p-1 rounded bg-white text-sm" value={endDate} onChange={e=>setEndDate(e.target.value)} /><span className="text-xs text-slate-400">(미입력 시 계속)</span></div></div>}</div>
+                        </div>
+                        <button onClick={handleRegister} className="w-full mt-6 bg-[#FDE047] py-4 rounded-xl font-bold text-slate-900 hover:bg-yellow-300 shadow-lg">수업 등록 완료</button>
+                    </div>
+                </div>
+            );
+        }
+
+        function ScheduleActionModal({ schedule, onClose, onStart, onNoShow, onChange, showToast, onDelete }) {
+            const [mode, setMode] = useState('main'); 
+            const [editData, setEditData] = useState({ date: schedule.date, time: schedule.startTime });
+
+            const handleStart = () => {
+                if (checkIsMobile()) {
+                    showToast("모바일에서는 수업이 불가능합니다.");
+                    return;
+                }
+                onStart();
+            };
+
+            const handleDelete = () => {
+                const itemType = schedule.type === 'reserve' ? '상담' : '수업';
+                showToast(`${itemType}이 삭제되었습니다.`);
+                onDelete();
+                onClose();
+            };
+            
+            const handleComplete = async () => {
+                const itemType = schedule.type === 'reserve' ? '상담' : '수업';
+                const { error } = await supabase.from('schedules').update({ status: 'completed' }).eq('id', schedule.id);
+                if (!error) {
+                    showToast(`${itemType}이 완료되었습니다.`);
+                    window.location.reload(); // 전체 새로고침하여 상태 반영
+                }
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+                    <div className="bg-white rounded-2xl w-full max-w-[400px] p-6 shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+                        {mode !== 'delete_confirm' && mode !== 'complete_confirm' && (
+                            <div className="flex justify-between items-start mb-6">
+                                <div><h3 className="text-2xl font-black">{schedule.clientName}</h3><p className="text-slate-500 text-sm">{schedule.date} {schedule.startTime} ~ {schedule.endTime}</p></div>
+                                <button onClick={onClose}><X size={20}/></button>
+                            </div>
+                        )}
+                        {mode === 'main' ? (
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={handleStart} className="col-span-2 bg-slate-900 text-[#FDE047] py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition"><Play size={20} fill="#FDE047"/> {schedule.type === 'reserve' ? '상담 시작' : '수업 시작'}</button>
+                                <button onClick={() => setMode('complete_confirm')} className="col-span-2 bg-green-50 text-green-600 py-3 rounded-xl font-bold border border-green-100 hover:bg-green-100 flex items-center justify-center gap-2"><Check size={18}/> {schedule.type === 'reserve' ? '상담 완료 처리' : '수업 완료 처리'}</button>
+                                <button onClick={onNoShow} className={`${schedule.type === 'client' ? '' : 'col-span-2'} bg-red-50 text-red-600 py-3 rounded-xl font-bold border border-red-100 hover:bg-red-100`}>미출석</button>
+                                {schedule.type === 'client' && <button onClick={() => setMode('edit')} className="bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-50">일정 변경</button>}
+                                <button onClick={() => setMode('delete_confirm')} className="bg-white border border-red-100 text-red-500 py-3 rounded-xl font-bold hover:bg-red-50 col-span-2">일정 삭제</button>
+                            </div>
+                        ) : mode === 'edit' ? (
+                            <div className="space-y-4">
+                                <div><label className="text-xs font-bold text-slate-500">날짜 변경</label><input type="date" className="w-full border p-2 rounded-lg" value={editData.date} onChange={e=>setEditData({...editData, date: e.target.value})}/></div>
+                                <div><label className="text-xs font-bold text-slate-500">시간 변경</label><input type="time" className="w-full border p-2 rounded-lg" value={editData.time} onChange={e=>setEditData({...editData, time: e.target.value})}/></div>
+                                <div className="flex gap-2 mt-4"><button onClick={() => onChange(schedule.id, editData.date, editData.time)} className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold">저장</button><button onClick={() => setMode('main')} className="flex-1 border py-2 rounded-lg">취소</button></div>
+                            </div>
+                        ) : mode === 'complete_confirm' ? (
+                            <div className="text-center py-4">
+                                <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4"><Check size={24}/></div>
+                                <h3 className="font-bold text-xl mb-2">{schedule.type === 'reserve' ? '상담을 완료하시겠습니까?' : '수업을 완료하시겠습니까?'}</h3>
+                                <p className="text-slate-500 text-sm mb-6">완료 처리하면 캘린더에서 완료 상태로 표시됩니다.</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setMode('main')} className="flex-1 py-3 border rounded-xl font-bold text-slate-600">취소</button>
+                                    <button onClick={handleComplete} className="flex-1 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600">완료 처리</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-4">
+                                <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4"><Trash2 size={24}/></div>
+                                <h3 className="font-bold text-xl mb-2">일정을 삭제하시겠습니까?</h3>
+                                <p className="text-slate-500 text-sm mb-6">삭제된 일정은 복구할 수 없습니다.</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setMode('main')} className="flex-1 py-3 border rounded-xl font-bold text-slate-600">취소</button>
+                                    <button onClick={handleDelete} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600">삭제하기</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+        }
+
+        function RegistrationTypeModal({ onSelect, onCancel }) {
+            return (
+                <div className="absolute inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center p-4">
+                      <div className="text-center w-full max-w-[500px]">
+                          <h3 className="text-2xl font-black mb-8">어떤 대상을 등록하시겠습니까?</h3>
+                          <div className="flex flex-col md:flex-row gap-6 justify-center">
+                              <button onClick={() => onSelect('client')} className="w-full md:w-48 h-32 md:h-48 bg-white border-2 border-slate-100 rounded-3xl hover:border-[#FDE047] hover:bg-yellow-50 hover:-translate-y-1 transition shadow-lg flex flex-col items-center justify-center gap-4 group"><div className="bg-slate-100 p-4 rounded-full group-hover:bg-[#FDE047] transition"><User size={32}/></div><span className="font-bold text-lg">내담자 등록</span></button>
+                              <button onClick={() => onSelect('reserve')} className="w-full md:w-48 h-32 md:h-48 bg-white border-2 border-slate-100 rounded-3xl hover:border-purple-400 hover:bg-purple-50 hover:-translate-y-1 transition shadow-lg flex flex-col items-center justify-center gap-4 group"><div className="bg-slate-100 p-4 rounded-full group-hover:bg-purple-400 group-hover:text-white transition"><CalendarIcon size={32}/></div><span className="font-bold text-lg">상담 예약자</span></button>
+                          </div>
+                          <button onClick={onCancel} className="mt-8 text-slate-400 hover:text-slate-600 font-bold">취소</button>
+                      </div>
+                </div>
+            )
+        }
+
+        function ClientFormPage({ type, defaultSessionTime, onClose, onSubmit, initialData, customTitle, customButtonText, isConsultationMode, showToast }) {
+            const isReserve = type === 'reserve';
+            const [form, setForm] = useState({ name: '', gender: '남', dob: '', age: '', contact: '', address: '', guardians: [{ name: '', relation: '', contact: '' }], sessionTime: defaultSessionTime, diagnosis: '', memo: '', initialConsult: '', areas: { lang: [], cogn: [], behv: [] }, reserveDate: '', reserveTime: '' });
+            
+            useEffect(() => {
+                if (initialData) {
+                    setForm({
+                        ...initialData,
+                        guardians: initialData.guardians || [{ name: '', relation: '', contact: '' }],
+                        areas: initialData.areas || { lang: [], cogn: [], behv: [] }
+                    });
+                }
+            }, [initialData]);
+
+            // Auto calculate age if DOB changes
+            useEffect(() => { if(form.dob) setForm(p => ({ ...p, age: calculateAge(p.dob) })); }, [form.dob]);
+            
+            const handleSubmit = (e) => { 
+                e.preventDefault(); 
+                if (!form.name || !form.gender) {
+                    if (showToast) showToast('이름과 성별은 필수입니다.');
+                    else alert('이름과 성별은 필수입니다.');
+                    return;
+                }
+                
+                // Final check before submit (e.g. valid DOB year)
+                // If only year is entered (from UI), dob might be 'YYYY-01-01'.
+                
+                onSubmit({ ...form, type }); 
+            };
+            const addAreaTag = (area, value) => { if(!value.trim()) return; setForm(prev => ({ ...prev, areas: { ...prev.areas, [area]: [...prev.areas[area], value] } })); };
+
+            return (
+                <div className="flex flex-col h-full bg-white animate-fade-in overflow-hidden">
+                    <div className="p-6 border-b flex justify-between items-center bg-white sticky top-0 z-10"><div className="flex items-center gap-4"><button onClick={onClose}><ChevronLeft/></button><h2 className="text-2xl font-black">{customTitle ? customTitle : (initialData ? '정보 수정' : (isReserve?'상담 예약자 등록':'내담자 등록'))}</h2></div><button onClick={onClose}>닫기</button></div>
+                    <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full space-y-8">
+                        <section><h3 className="font-bold text-lg mb-4">기본 정보</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl">
+                            <input placeholder="이름" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} className="border p-3 rounded-xl"/>
+                            <div className="flex gap-2">{['남','여'].map(g=><button key={g} type="button" onClick={()=>setForm({...form, gender:g})} className={`flex-1 border rounded-xl font-bold ${form.gender===g?'bg-[#FDE047]':'bg-white'}`}>{g}</button>)}</div>
+                            <div className="flex gap-2 items-center">
+                                <input 
+                                    type="number" 
+                                    placeholder="YYYY"
+                                    className="w-24 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047]"
+                                    value={form.dob ? form.dob.split('-')[0] : ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        // If empty year, clear DOB
+                                        if (!val) { setForm({...form, dob: ''}); return; }
+                                        const parts = form.dob ? form.dob.split('-') : ['','',''];
+                                        const m = parts[1] || '01'; // Default Month 01
+                                        const d = parts[2] || '01'; // Default Day 01
+                                        setForm({...form, dob: `${val}-${m}-${d}`});
+                                    }}
+                                />
+                                <span className="text-slate-400 font-bold text-xs">년</span>
+                                <select 
+                                    className="flex-1 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047] appearance-none bg-white"
+                                    value={form.dob ? parseInt(form.dob.split('-')[1] || 1) : ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toString().padStart(2, '0');
+                                        const parts = form.dob ? form.dob.split('-') : [new Date().getFullYear(),'01','01'];
+                                        const y = parts[0] || new Date().getFullYear();
+                                        const d = parts[2] || '01';
+                                        setForm({...form, dob: `${y}-${val}-${d}`});
+                                    }}
+                                >
+                                    <option value="" disabled>월</option>
+                                    {Array.from({length: 12},(_,i)=>i+1).map(v=><option key={v} value={v}>{v}</option>)}
+                                </select>
+                                <span className="text-slate-400 font-bold text-xs">월</span>
+                                <select 
+                                    className="flex-1 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047] appearance-none bg-white"
+                                    value={form.dob ? parseInt(form.dob.split('-')[2] || 1) : ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toString().padStart(2, '0');
+                                        const parts = form.dob ? form.dob.split('-') : [new Date().getFullYear(),'01','01'];
+                                        const y = parts[0] || new Date().getFullYear();
+                                        const m = parts[1] || '01';
+                                        setForm({...form, dob: `${y}-${m}-${val}`});
+                                    }}
+                                >
+                                    <option value="" disabled>일</option>
+                                    {Array.from({length: 31},(_,i)=>i+1).map(v=><option key={v} value={v}>{v}</option>)}
+                                </select>
+                                <span className="text-slate-400 font-bold text-xs">일</span>
+                                <input type="number" readOnly className="w-20 border p-3 rounded-xl text-center bg-slate-100 text-slate-500 ml-2" value={form.age} />
+                                <span className="text-slate-400 font-bold text-xs">세</span>
+                            </div>
+                            <input placeholder="연락처" className="border p-3 rounded-xl" value={form.contact} onChange={e=>setForm({...form, contact:e.target.value})}/>
+                            <input placeholder="주소" className="border p-3 rounded-xl md:col-span-2" value={form.address} onChange={e=>setForm({...form, address:e.target.value})}/>
+                            {/* [RESTORED] Default Session Time */}
+                            <div className="md:col-span-2">
+                                <label className="text-xs font-bold text-slate-500 mb-1 block">기본 수업 시간 (분)</label>
+                                <input type="number" className="border p-3 rounded-xl w-full" value={form.sessionTime} onChange={e=>setForm({...form, sessionTime: parseInt(e.target.value) || 0})}/>
+                            </div>
+                        </div></section>
+                        <section>
+                            <h3 className="font-bold text-lg mb-4">보호자 정보 (최대 3명)</h3>
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-3">
+                                {form.guardians.map((g, i) => (
+                                    <div key={i} className="flex gap-2">
+                                        <input placeholder="이름" className="flex-1 border p-2 rounded-lg" value={g.name} onChange={e=>{const newG=[...form.guardians]; newG[i].name=e.target.value; setForm({...form, guardians:newG})}} />
+                                        <input placeholder="관계" className="w-20 border p-2 rounded-lg" value={g.relation} onChange={e=>{const newG=[...form.guardians]; newG[i].relation=e.target.value; setForm({...form, guardians:newG})}} />
+                                        <input placeholder="연락처" className="flex-1 border p-2 rounded-lg" value={g.contact} onChange={e=>{const newG=[...form.guardians]; newG[i].contact=e.target.value; setForm({...form, guardians:newG})}} />
+                                    </div>
+                                ))}
+                                {form.guardians.length < 3 && <button type="button" onClick={()=>setForm({...form, guardians:[...form.guardians, {name:'',relation:'',contact:''}]})} className="text-sm font-bold text-slate-500">+ 보호자 추가</button>}
+                            </div>
+                        </section>
+                        <section><h3 className="font-bold text-lg mb-4">임상 정보</h3><div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                            <input placeholder="진단명" className="w-full border p-3 rounded-xl" value={form.diagnosis} onChange={e=>setForm({...form, diagnosis:e.target.value})}/>
+                            <textarea placeholder="초기 상담" className="w-full border p-3 rounded-xl h-24" value={form.initialConsult} onChange={e=>setForm({...form, initialConsult:e.target.value})}/>
+                            <AreaInput label="언어" items={form.areas.lang} onAdd={v=>addAreaTag('lang',v)} onDelete={i=>{const n=[...form.areas.lang];n.splice(i,1);setForm({...form, areas:{...form.areas, lang:n}})}}/>
+                            <AreaInput label="인지" items={form.areas.cogn} onAdd={v=>addAreaTag('cogn',v)} onDelete={i=>{const n=[...form.areas.cogn];n.splice(i,1);setForm({...form, areas:{...form.areas, cogn:n}})}}/>
+                            <AreaInput label="행동" items={form.areas.behv} onAdd={v=>addAreaTag('behv',v)} onDelete={i=>{const n=[...form.areas.behv];n.splice(i,1);setForm({...form, areas:{...form.areas, behv:n}})}}/>
+                             {/* [RESTORED] Memo */}
+                             <div className="mt-2">
+                                <label className="text-xs font-bold text-slate-500 mb-1 block">특이사항/메모</label>
+                                <textarea placeholder="특이사항을 입력하세요." className="w-full border p-3 rounded-xl h-24" value={form.memo} onChange={e=>setForm({...form, memo:e.target.value})}/>
+                            </div>
+                        </div></section>
+                    </div>
+                    <div className="p-6 border-t flex justify-end"><button onClick={handleSubmit} className="px-8 py-3 bg-[#FDE047] rounded-xl font-bold">{customButtonText ? customButtonText : (initialData ? '수정 완료' : '등록 완료')}</button></div>
+                </div>
+            )
+        }
+
+        function AreaInput({ label, items, onAdd, onDelete }) {
+            const [val, setVal] = useState('');
+            return (<div><label className="text-sm font-bold mb-1 block">{label}</label><div className="flex gap-2 mb-2"><input className="flex-1 border p-2 rounded text-sm" value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>e.key==='Enter'&&(onAdd(val),setVal(''))}/><button type="button" onClick={()=>{onAdd(val);setVal('')}} className="bg-slate-200 px-3 rounded font-bold text-sm">추가</button></div><div className="flex flex-wrap gap-1">{items.map((t,i)=><span key={i} className="bg-white border px-2 py-0.5 rounded text-xs flex items-center gap-1">{t}<button type="button" onClick={()=>onDelete(i)}><X size={10}/></button></span>)}</div></div>);
+        }
+
+        function ClientDetailPage({ client, schedules, setSchedules, onClose, onUpdate, onDelete, onConvert, showToast, teacherName, onStartSession, onEdit, initialTab }) {
+            // [FIXED] Initialize activeTab with initialTab if present
+            const [activeTab, setActiveTab] = useState(initialTab || 'info');
+            const [actionStep, setActionStep] = useState(null); // 'confirm_delete', 'confirm_pause', 'confirm_terminate'
+            const [verifyName, setVerifyName] = useState('');
+            const [showStartModal, setShowStartModal] = useState(false); 
+
+            useEffect(() => {
+                // [FIXED] Reset to 'info' if initialTab is missing, otherwise set to initialTab
+                if (initialTab) {
+                    setActiveTab(initialTab);
+                } else {
+                    setActiveTab('info');
+                }
+            }, [initialTab, client.id]);
+
+            const clientHistory = schedules.filter(s => s.clientId === client.id).sort((a,b) => new Date(b.date+'T'+b.startTime) - new Date(a.date+'T'+a.startTime));
+
+            const handleDelete = () => {
+                if (verifyName !== client.name) return showToast('이름이 일치하지 않습니다.');
+                // Direct call, no window.confirm
+                onDelete(client.id);
+            };
+            
+            const handleTerminate = () => {
+                if (verifyName !== client.name) return showToast('이름이 일치하지 않습니다.');
+                onUpdate({ ...client, status: 'terminated' });
+                showToast(`수고하셨습니다 ${teacherName} 선생님`);
+                setActionStep(null);
+            };
+            
+            const handlePause = () => {
+                 if (verifyName !== client.name) return showToast('이름이 일치하지 않습니다.');
+                 onUpdate({ ...client, status: 'paused' });
+                 showToast('수업이 정지되었습니다.');
+                 setActionStep(null);
+            };
+
+            const handleResume = () => {
+                onUpdate({ ...client, status: 'active' }); 
+                showToast('수업이 재개되었습니다.');
+                setActionStep(null);
+            };
+
+            const handleUnscheduledStart = async () => {
+                if (checkIsMobile()) {
+                    showToast("모바일에서는 수업이 불가능합니다.");
+                    return;
+                }
+
+                const now = new Date();
+                const startTime = now.toTimeString().slice(0, 5);
+                const endDate = new Date(now.getTime() + (client.sessionTime || 50) * 60000);
+                const endTime = endDate.toTimeString().slice(0, 5);
+
+                const payload = {
+                    teacher_id: client.teacherId,
+                    client_id: client.id,
+                    client_name: client.name,
+                    type: client.type,
+                    date: formatDateLocal(now),
+                    start_time: startTime,
+                    end_time: endTime,
+                    status: 'scheduled' 
+                };
+
+                const { data, error } = await supabase.from('schedules').insert([payload]).select();
+                if(!error) {
+                    const newSchedule = keysToCamel(data[0]);
+                    setSchedules(prev => [...prev, newSchedule]);
+                    onStartSession(newSchedule);
+                    setShowStartModal(false);
+                }
+            };
+
+            const tabs = [{id:'info',l:'정보'}];
+            if (client.type === 'client') {
+                tabs.push({id:'history',l:'수업이력'});
+            } else {
+                tabs.push({id:'history',l:'상담이력'});
+            }
+
+            const getActionTitle = () => {
+                switch(actionStep) {
+                    case 'confirm_delete': return '삭제 확인:';
+                    case 'confirm_pause': return '수업 정지 확인:';
+                    case 'confirm_terminate': return '종결 확인:';
+                    default: return '';
+                }
+            };
+
+            const handleActionConfirm = async () => {
+                if (verifyName !== client.name) return showToast('이름이 일치하지 않습니다.');
+
+                if (actionStep === 'confirm_delete') {
+                    handleDelete();
+                    return;
+                }
+
+                let shouldDeleteFuture = false;
+                if (actionStep === 'confirm_terminate' || actionStep === 'confirm_pause') {
+                    shouldDeleteFuture = confirm("앞으로의 모든 일정을 삭제하시겠습니까?\n(확인 시 오늘 이후의 모든 예약된 일정이 삭제됩니다.)");
+                }
+
+                const newStatus = actionStep === 'confirm_terminate' ? 'terminated' : 'paused';
+
+                // 1. Update Client Status
+                await onUpdate({ ...client, status: newStatus });
+
+                // 2. Delete Schedules if confirmed
+                if (shouldDeleteFuture) {
+                    const today = new Date().toISOString().split('T')[0];
+                    const { error } = await supabase
+                        .from('schedules')
+                        .delete()
+                        .eq('client_id', client.id)
+                        .gte('date', today);
+
+                    if (!error) {
+                        // Update local schedule state
+                        setSchedules(prev => prev.filter(s => 
+                            !(s.clientId === client.id && s.date >= today)
+                        ));
+                        showToast('상태 변경 및 미래 일정이 삭제되었습니다.');
+                    } else {
+                        showToast('상태는 변경되었으나 일정 삭제 중 오류가 발생했습니다.');
+                    }
+                } else {
+                    showToast('상태가 변경되었습니다.');
+                }
+                
+                setActionStep(null);
+                setVerifyName('');
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-white animate-fade-in relative">
+                    <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+                        <div className="flex items-center gap-4">
+                            <button onClick={onClose}><ChevronLeft/></button>
+                            <div className="flex items-center gap-2">
+                                <h2 className={`text-2xl font-black ${(client.status === 'terminated' || client.status === 'paused') ? 'text-gray-400' : 'text-slate-900'}`}>{client.name}</h2>
+                                {client.status === 'terminated' && <span className="bg-gray-200 text-gray-500 text-xs px-2 py-1 rounded font-bold">수업종결</span>}
+                                {client.status === 'paused' && <span className="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded font-bold">수업정지</span>}
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={onEdit} className="bg-slate-100 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-slate-200">수정</button>
+                            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg"><X size={20}/></button>
+                        </div>
+                    </div>
+                    <div className="flex border-b px-6">{tabs.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} className={`px-6 py-4 font-bold border-b-2 ${activeTab===t.id?'border-[#FDE047]':'border-transparent text-slate-400'}`}>{t.l}</button>)}</div>
+                    <div className="flex-1 overflow-y-auto p-8 pb-32">
+                        {activeTab==='info' && (
+                            <div className="space-y-6">
+                                <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><span className="text-xs text-slate-400 font-bold block">연락처</span><p className="font-bold">{client.contact || '-'}</p></div>
+                                        <div><span className="text-xs text-slate-400 font-bold block">생년월일 (나이)</span><p>{client.dob} (만 {client.age}세)</p></div>
+                                        <div><span className="text-xs text-slate-400 font-bold block">기본 수업 시간</span><p>{client.sessionTime || 50}분</p></div>
+                                        <div className="col-span-2"><span className="text-xs text-slate-400 font-bold block">주소</span><p>{client.address || '-'}</p></div>
+                                    </div>
+                                    <div className="border-t border-slate-200 pt-4">
+                                        <span className="text-xs text-slate-400 font-bold block mb-2">보호자 정보</span>
+                                        {client.guardians && client.guardians.map((g, i) => (
+                                            <div key={i} className="flex gap-2 text-sm mb-1"><span className="font-bold w-16">{g.name}</span><span className="text-slate-500 w-10">({g.relation})</span><span>{g.contact}</span></div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
+                                    <div className="flex justify-between border-b pb-2"><span className="text-slate-400 text-sm font-bold">진단명</span><span className="font-bold">{client.diagnosis}</span></div>
+                                    <div className="border-b pb-2"><span className="text-slate-400 text-sm font-bold block mb-1">초기 상담</span><p className="text-sm">{client.initialConsult}</p></div>
+                                    {client.areas && Object.entries(client.areas).map(([k,v])=>v.length>0&&<div key={k} className="flex gap-2"><span className="font-bold text-sm w-10">{k}</span><div className="flex flex-wrap gap-1">{v.map(t=><span key={t} className="bg-white border px-2 rounded text-xs">{t}</span>)}</div></div>)}
+                                    <div className="mt-4"><span className="text-slate-400 text-sm font-bold block mb-1">메모</span><p className="text-sm whitespace-pre-wrap">{client.memo}</p></div>
+                                </div>
+
+                                {/* Action Buttons Section - Fully custom UI, no window.confirm */}
+                                <div className="pt-8 border-t border-slate-100">
+                                    <div className="flex gap-2 items-center flex-wrap">
+                                        {actionStep ? (
+                                            <div className="flex items-center gap-2 w-full animate-fade-in bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                                <span className="text-sm font-bold text-slate-900 whitespace-nowrap">{getActionTitle()}</span>
+                                                <input placeholder="이름 입력" value={verifyName} onChange={e=>setVerifyName(e.target.value)} className="border p-2 rounded-lg text-sm flex-1 min-w-[100px]" />
+                                                <button onClick={handleActionConfirm} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-700">확인</button>
+                                                <button onClick={()=>{setActionStep(null); setVerifyName('')}} className="bg-white border px-4 py-2 rounded-lg font-bold text-sm">취소</button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <button onClick={()=>setActionStep('confirm_delete')} className="bg-red-100 text-red-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-red-200">삭제</button>
+                                                {client.type === 'client' && (
+                                                    <>
+                                                        {client.status === 'paused' || client.status === 'terminated' ? (
+                                                            <button onClick={handleResume} className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-200">수업 재개</button>
+                                                        ) : (
+                                                            <button onClick={()=>setActionStep('confirm_pause')} className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-orange-200">수업 정지</button>
+                                                        )}
+                                                        
+                                                        {client.status !== 'terminated' && (
+                                                            <button onClick={()=>setActionStep('confirm_terminate')} className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-300">수업 종결</button>
+                                                        )}
+                                                    </>
+                                                )}
+                                                {client.type === 'reserve' && (
+                                                    <button onClick={()=>onConvert(client)} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-200">정규 내담자로 등록</button>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {activeTab==='history' && <div className="space-y-4">
+                            {clientHistory.length === 0 ? <p className="text-center text-slate-400 py-10">수업 이력이 없습니다.</p> : 
+                            clientHistory.map(h => (
+                                <div key={h.id} className="border p-4 rounded-xl flex justify-between items-center">
+                                    <div><span className={`text-xs font-bold px-2 py-0.5 rounded text-white mb-1 inline-block ${h.status==='completed'?'bg-green-500':h.status==='noshow'?'bg-red-500':'bg-slate-300'}`}>{h.status==='completed'?'출석':h.status==='noshow'?'결석':'예정'}</span><p className="font-bold">{h.date} {h.startTime}</p></div>
+                                    {h.memo && <span className="text-sm text-slate-500">{h.memo}</span>}
+                                </div>
+                            ))}
+                        </div>}
+                    </div>
+
+                    {/* Floating Action Button */}
+                    {client.type === 'client' && client.status !== 'terminated' && client.status !== 'paused' && (
+                        <button 
+                            onClick={() => setShowStartModal(true)}
+                            className="absolute bottom-10 right-8 bg-[#FDE047] text-slate-900 px-6 py-3 rounded-full font-bold shadow-xl flex items-center gap-2 hover:scale-105 transition z-20"
+                        >
+                            <Play size={20} fill="#1e293b"/> 수업 시작
+                        </button>
+                    )}
+
+                    {/* Unscheduled Start Modal */}
+                    {client.type === 'client' && showStartModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowStartModal(false)}>
+                            <div className="bg-white rounded-2xl w-full max-w-[400px] p-6 shadow-2xl animate-fade-in text-center" onClick={e => e.stopPropagation()}>
+                                <div className="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4"><Play size={24} fill="#ca8a04"/></div>
+                                <h3 className="font-bold text-xl mb-2">수업 바로 시작</h3>
+                                <p className="text-slate-500 text-sm mb-6">스케줄에 없는 수업을 시작하시겠습니까?<br/>확인 시 수업 이력에 자동으로 기록됩니다.</p>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowStartModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-slate-600">취소</button>
+                                    <button onClick={handleUnscheduledStart} className="flex-1 py-3 bg-[#FDE047] rounded-xl font-bold text-slate-900">시작하기</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
