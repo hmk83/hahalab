@@ -466,6 +466,38 @@
 
             const handleSave = async (e) => {
                 e.preventDefault();
+                
+                // 비밀번호 변경 체크 (수정 모드이고, 비밀번호가 변경되었을 때)
+                const isPasswordChanged = !isAdding && form.password && form.password !== detailView.password && form.password !== '****';
+                
+                if (isPasswordChanged) {
+                    // 관리자 비밀번호 확인
+                    const adminPass = prompt("비밀번호 변경을 위해 관리자 비밀번호를 입력하세요:");
+                    if (!verifyCredentials(adminPass)) {
+                        alert("관리자 인증 실패");
+                        return;
+                    }
+                    
+                    // 새 비밀번호 2회 입력 확인
+                    const newPassword1 = prompt("새 비밀번호를 입력하세요 (4~6자리 영문+숫자):");
+                    if (!newPassword1) return;
+                    
+                    const newPassword2 = prompt("새 비밀번호를 다시 입력하세요:");
+                    if (!newPassword2) return;
+                    
+                    if (newPassword1 !== newPassword2) {
+                        alert("비밀번호가 일치하지 않습니다.");
+                        return;
+                    }
+                    
+                    if (!/^[a-zA-Z0-9]{4,6}$/.test(newPassword1)) {
+                        alert("비밀번호는 4~6자리의 영문 또는 숫자 조합이어야 합니다.");
+                        return;
+                    }
+                    
+                    form.password = newPassword1;
+                }
+                
                 let finalPassword = form.password || '1234';
                 if (!/^[a-zA-Z0-9]{4,6}$/.test(finalPassword)) return alert("비밀번호는 4~6자리의 숫자 또는 영문+숫자 조합이어야 합니다.");
 
@@ -473,10 +505,21 @@
 
                 if (isAdding) {
                     const { data, error } = await supabase.from('teachers').insert([payload]).select();
-                    if (!error) { setTeachers([keysToCamel(data[0]), ...teachers]); setIsAdding(false); } else alert("저장 실패: " + error.message);
+                    if (!error) { 
+                        setTeachers([keysToCamel(data[0]), ...teachers]); 
+                        setIsAdding(false); 
+                        alert("선생님 등록 완료");
+                    } else alert("저장 실패: " + error.message);
                 } else {
                     const { error } = await supabase.from('teachers').update(payload).eq('id', form.id);
-                    if (!error) { const updated = { ...form, password: finalPassword }; setTeachers(teachers.map(t => t.id === form.id ? updated : t)); setDetailView(updated); setIsEditing(false); } else alert("수정 실패: " + error.message);
+                    if (!error) { 
+                        const updated = { ...form, password: finalPassword }; 
+                        setTeachers(teachers.map(t => t.id === form.id ? updated : t)); 
+                        setDetailView(updated); 
+                        setIsEditing(false); 
+                        if (isPasswordChanged) alert("비밀번호가 성공적으로 변경되었습니다.");
+                        else alert("정보가 수정되었습니다.");
+                    } else alert("수정 실패: " + error.message);
                 }
             };
 
@@ -525,7 +568,7 @@
                                             <span className={`text-xs font-bold px-2 py-1 rounded bg-gray-800 ${teacher.plan === 'Basic Plan' ? 'text-gray-400' : 'text-[#FEE500]'}`}>{teacher.plan}</span>
                                         </div>
                                     </div>
-                                    <div className="flex gap-4 text-xs text-gray-500 font-medium"><span>{teacher.contact}</span><span>•</span><span>{teacher.teacherId}</span></div>
+                                    <div className="flex gap-4 text-xs text-gray-500 font-medium"><span>{teacher.contact}</span><span>•</span><span>{teacher.teacherId}</span><span>•</span><span>비밀번호: ****</span></div>
                                 </div>
                             ))}
                         </div>
@@ -558,7 +601,17 @@
                                         <div className="space-y-1"><label className="text-xs font-bold text-gray-500">센터명</label><input disabled={!isEditing} required className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.center} onChange={e=>setForm({...form, center: e.target.value})} /></div>
                                         <div className="space-y-1"><label className="text-xs font-bold text-gray-500">이름</label><input disabled={!isEditing} required className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} /></div>
                                         <div className="space-y-1"><label className="text-xs font-bold text-gray-500">아이디</label><input disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.teacherId} onChange={e=>setForm({...form, teacherId: e.target.value})} /></div>
-                                        <div className="space-y-1"><label className="text-xs font-bold text-gray-500">비밀번호</label><input disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" placeholder="1234" value={form.password} onChange={e=>setForm({...form, password: e.target.value})} /></div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-gray-500">비밀번호</label>
+                                            <input 
+                                                disabled={!isEditing} 
+                                                type={isEditing ? "text" : "password"}
+                                                className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" 
+                                                placeholder="1234" 
+                                                value={isEditing ? form.password : '****'} 
+                                                onChange={e=>setForm({...form, password: e.target.value})} 
+                                            />
+                                        </div>
                                         <div className="space-y-1"><label className="text-xs font-bold text-gray-500">연락처</label><input disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.contact} onChange={e=>setForm({...form, contact: e.target.value})} /></div>
                                         <div className="space-y-1 md:col-span-2"><label className="text-xs font-bold text-gray-500">요금제</label><select disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.plan} onChange={e=>setForm({...form, plan: e.target.value})}>{plans.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</select></div>
                                     </div>

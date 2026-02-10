@@ -1,311 +1,167 @@
-# HAHA LAB v3.2 - 아동 발달 치료 관리 시스템
+# HAHA LAB v4.1 - 최종 배포 버전
 
-## 📌 프로젝트 개요
-- **버전**: v3.2
-- **업데이트**: 2026-02-10  
-- **설명**: Supabase 기반 아동 발달 치료 스케줄 및 내담자 관리 시스템
-- **주요 기술**: React 18, Supabase (PostgreSQL), Tailwind CSS
+## 📦 프로젝트 개요
+- **프로젝트명**: HAHA LAB
+- **버전**: v4.1
+- **타입**: 아동 발달 센터 관리 시스템
+- **기술 스택**: React 18, Supabase, Tailwind CSS
 
----
+## 📁 파일 구조
+```
+/home/user/webapp/
+├── index.html                              # ✅ 메인 대시보드 (선생님용)
+├── admin.html                              # ✅ 관리자 콘솔 (v4.1 업데이트)
+├── haha_lab_final_schema_v4.1.sql         # ✅ 최신 SQL 스키마
+├── INDEX_MODIFICATIONS_GUIDE.md            # index.html 수정 가이드
+└── README.md                               # 이 파일
+```
 
-## ✨ v3.2 주요 업데이트
+## 🔐 접속 정보
 
-### 🆕 신규 기능
-1. **상담이력/수업이력 추적 시스템**
-   - YYYYMMDD HH:mm 형식 통일
-   - 자동 이력 기록 (완료/미출석/변경/삭제)
-   - 상담예약자: 상담이력 탭
-   - 내담자: 수업이력 탭
+### Supabase 연결
+- **URL**: `https://gxungzlecmibgvykoiib.supabase.co`
+- **Anon Key**: `sb_publishable_hzQriBXTJeAwATA2NjnV7A_Tr9E1hfE`
 
-2. **수업시간 통계**
-   - 주간 수업시간
-   - 월간 수업시간  
-   - 총 수업시간
-   - 실시간 자동 계산
+### 관리자 접속
+- **URL**: `admin.html`
+- **Access Token**: `zxcasd123`
 
-3. **실시간 타이머 (GNB)**
-   - 수업 진행 중 초단위 타이머 표시
-   - HH:MM:SS 형식
+### 샘플 선생님 계정
+- **ID**: `teacher01` / **PW**: `password123`
+- **ID**: `teacher02` / **PW**: `password456`
 
-4. **캘린더 모달 개선**
-   - 완료된 일정 클릭 → 상세보기 모달
-   - 상세보기 버튼 → 이력 탭 이동
-   - 삭제 버튼
+## ✨ v4.1 주요 업데이트 (2026-02-10)
 
----
+### 🔒 Admin.html 보안 강화
+1. **비밀번호 마스킹**
+   - 선생님 목록: 비밀번호 `****`로 표시
+   - 상세 화면 (수정 모드 아닐 때): `****`로 마스킹
 
-## 📋 주요 기능
+2. **비밀번호 변경 프로세스**
+   ```
+   ① 수정 버튼 클릭
+   ② 비밀번호 필드 수정
+   ③ 저장 버튼 클릭
+   ④ 관리자 비밀번호 입력 (zxcasd123)
+   ⑤ 새 비밀번호 2회 입력 (4~6자리 영문+숫자)
+   ⑥ 일치 확인 후 저장
+   ```
 
-### 사용자 페이지
-1. **내담자/상담예약자 관리**
-   - 프로필 CRUD
-   - 상담예약자 ↔ 내담자 전환
-   - 수업정지/종결 상태 관리
+3. **데이터 무결성**
+   - Foreign Key 제약조건 제거 (clients, schedules)
+   - 유연한 teacher_id 관리
+   - 내담자/예약자 등록 오류 해결
 
-2. **스케줄 관리**
-   - 캘린더 뷰 (월간/주간/일간)
-   - 드래그 앤 드롭 일정 등록
-   - 수업 시작/종료, 미출석 처리
+### 📊 Index.html 기능 (기존 유지)
+- ✅ 달력 뷰 (월/주/일)
+- ✅ 내담자 관리
+- ✅ 스케줄 관리
+- ✅ Play Lab 콘텐츠
+- ✅ 공지사항
+- ✅ 세션 모드
 
-3. **이력 추적 시스템** 🆕
-   - 수업/상담 완료 자동 기록
-   - 미출석/일정변경/삭제 자동 기록
-   - YYYYMMDD HH:mm 형식
+### 🔧 추가 개선 필요 사항
+> `INDEX_MODIFICATIONS_GUIDE.md` 참조
 
-4. **Play Lab 콘텐츠**
-   - 7가지 카테고리 치료 콘텐츠
-   - 태그 기반 검색
+1. **달력 스케줄 클릭 시 상담 미출석 이벤트 처리**
+2. **미출석/완료건 모달 상세보기 (이력 조회)**
+3. **소프트 삭제** (is_visible_in_calendar = false)
+4. **예약자→내담자 변경 시 이력 통합**
+5. **캘린더 위 일정 카드 클릭 빈 화면 이슈**
+6. **주간/일간 뷰 현재 시간 자동 스크롤**
+7. **수업 진행 중 GNB 타이머 표시**
 
-### 관리자 페이지
-1. **대시보드** - 센터별 통계
-2. **공지사항 관리** - CRUD, 숨기기/보이기
-3. **콘텐츠 관리** - Play Lab 콘텐츠
-4. **활동 로그** - 시스템 활동 기록
+## 🚀 배포 방법
 
----
-
-## 🗄️ 데이터베이스 구조 (v3.2)
-
-### 핵심 테이블
-| 테이블 | 설명 |
-|--------|------|
-| **teachers** | 선생님 정보 |
-| **clients** | 내담자/상담예약자 |
-| **schedules** | 수업/상담 일정 |
-| **histories** 🆕 | 이력 추적 (v3.2) |
-| **notices** | 공지사항 |
-| **play_contents** | 치료 콘텐츠 |
-| **activity_logs** | 활동 로그 |
-
-### 🆕 histories 테이블 (v3.2)
+### 1단계: Supabase 데이터베이스 설정
 ```sql
-CREATE TABLE histories (
-    id BIGINT PRIMARY KEY,
-    teacher_id TEXT,
-    client_id TEXT,
-    client_name TEXT,
-    type TEXT,  -- session/consultation/noshow/reschedule/delete
-    category TEXT,  -- session_history/consultation_history
-    action TEXT,  -- 수업완료/상담완료/미출석/일정변경/일정삭제
-    
-    -- YYYYMMDD HH:mm 형식 필드
-    event_datetime TEXT,
-    start_datetime TEXT,
-    end_datetime TEXT,
-    noshow_datetime TEXT,
-    delete_datetime TEXT,
-    reschedule_datetime TEXT,
-    original_datetime TEXT,
-    changed_datetime TEXT,
-    
-    duration_minutes INT,
-    details TEXT,
-    memo TEXT
-);
+-- Supabase SQL Editor에서 실행
+-- haha_lab_final_schema_v4.1.sql 파일 내용 복사 후 실행
 ```
 
-### 🆕 함수 (v3.2)
-```sql
--- 수업시간 통계
-get_session_time_stats(p_client_id TEXT)
-RETURNS TABLE (
-    weekly_minutes INT,
-    monthly_minutes INT,
-    total_minutes INT
-)
-```
-
-### 🆕 트리거 (v3.2)
-- `log_schedule_completion` - 완료/미출석/변경 자동 기록
-- `log_schedule_deletion` - 삭제 자동 기록
-- `update_notice_timestamp` - 공지사항 수정 시각
-
----
-
-## 📊 이력 시스템 동작
-
-### 1. 수업/상담 완료
-```
-수업 20260210 14:00 ~ 20260210 14:50 (50분)
-상담 20260210 15:00 ~ 20260210 16:00 (60분)
-```
-
-### 2. 미출석 처리
-```
-미출석: 20260210 14:00
-미출석변경시점: 20260210 14:05
-```
-
-### 3. 일정 변경
-```
-일정변경 20260210 14:00 -> 20260211 15:00
-일정변경시점: 20260210 13:00
-```
-
-### 4. 일정 삭제
-```
-일정삭제: 20260210 14:00
-일정삭제시점: 20260210 13:30
-```
-
----
-
-## 🔄 상담예약자 → 내담자 전환
-
-### 자동 변환 프로세스
-```javascript
-1. clients.type: 'reserve' → 'client'
-2. schedules.type: 'reserve' → 'client'
-3. histories.category: 'consultation_history' → 'session_history'
-```
-
-**결과**: 모든 상담 이력이 수업 이력으로 자동 이동
-
----
-
-## 🚀 설치 및 실행
-
-### 1. Supabase 설정
+### 2단계: 파일 배포
 ```bash
-1. Supabase 프로젝트 생성
-2. SQL Editor에서 haha_lab_final_schema.sql 실행
-3. URL 및 Anon Key 복사
+# 정적 파일 호스팅 (Cloudflare Pages, Netlify, Vercel 등)
+# index.html, admin.html 파일 업로드
 ```
 
-### 2. 환경 변수
-```javascript
-// public/index.html, public/admin.html
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+### 3단계: 테스트
+1. `index.html` 접속 → 선생님 로그인
+2. `admin.html` 접속 → 관리자 로그인
+3. 내담자 등록 테스트
+4. 일정 생성 테스트
+
+## 🗄️ 데이터베이스 스키마
+
+### 주요 테이블
+```
+├── teachers          # 선생님 정보
+├── clients           # 내담자/예약자
+├── schedules         # 일정 (is_visible_in_calendar 필드 추가)
+├── histories         # 수업/상담 이력
+├── notices           # 공지사항
+├── play_contents     # Play Lab 콘텐츠
+└── activity_logs     # 활동 로그
 ```
 
-### 3. 로컬 실행
-```bash
-cd /home/user/webapp/public
-python3 -m http.server 8000
+### 트리거 자동화
+- ✅ 수업/상담 완료 시 → histories 자동 기록
+- ✅ 수업/상담 미출석 시 → histories 자동 기록
+- ✅ 일정 삭제 시 → histories 삭제 기록
+- ✅ 공지사항 수정 시 → updated_at 자동 갱신
 
-# 브라우저 접속:
-# http://localhost:8000/index.html (사용자)
-# http://localhost:8000/admin.html (관리자)
+## 🐛 알려진 이슈 및 해결 방법
+
+### 이슈 1: 내담자 등록 실패
+```
+오류: insert or update on table "clients" violates foreign key constraint
+해결: v4.1 SQL 스키마 사용 (Foreign Key 제거됨)
 ```
 
-### 4. 테스트 계정
+### 이슈 2: 비밀번호 그대로 노출
 ```
-ID: teacher01
-PW: 1234
-```
-
----
-
-## 📂 프로젝트 구조
-
-```
-webapp/
-├── haha_lab_final_schema.sql          # v3.2 SQL 스키마
-├── public/
-│   ├── index.html                      # 사용자 페이지
-│   └── admin.html                      # 관리자 페이지
-├── MODIFICATIONS_v3.2.md               # 상세 수정사항
-├── FINAL_COMPLETION_REPORT_v3.2.md    # 완료 보고서
-├── README.md                           # 본 문서
-└── .git/                               # Git 저장소
+문제: admin.html에서 선생님 비밀번호가 평문으로 표시
+해결: ✅ v4.1에서 수정됨 (****로 마스킹)
 ```
 
----
-
-## 💡 주요 SQL 예제
-
-### 이력 조회
-```sql
--- 수업 이력
-SELECT * FROM histories 
-WHERE client_id = '1' 
-AND category = 'session_history'
-ORDER BY created_at DESC;
-
--- 수업시간 통계
-SELECT * FROM get_session_time_stats('1');
+### 이슈 3: 캘린더 일정 카드 클릭 시 빈 화면
+```
+상태: 확인 필요
+해결책: INDEX_MODIFICATIONS_GUIDE.md 참조
 ```
 
-### 스케줄 처리
-```sql
--- 수업 완료
-UPDATE schedules SET status = 'completed' WHERE id = 1;
+## 📝 개발 히스토리
 
--- 미출석
-UPDATE schedules SET status = 'noshow' WHERE id = 2;
+### v4.1 (2026-02-10)
+- ✅ Foreign Key 제약조건 제거
+- ✅ Admin 비밀번호 보안 강화
+- ✅ 비밀번호 변경 프로세스 개선
 
--- 일정 변경
-UPDATE schedules 
-SET date = '2026-02-15', start_time = '15:00' 
-WHERE id = 3;
+### v4.0 (2026-02-10)
+- 통합 이력 시스템 (수업 + 상담)
+- 캘린더 표시 관리 (소프트 삭제)
+- 예약자→내담자 전환 지원
+- 자동 스크롤 및 타이머 기능
 
--- 일정 삭제
-DELETE FROM schedules WHERE id = 4;
-```
+### v3.2
+- Supabase 연동 완료
+- 기본 CRUD 기능
 
----
+## 🔜 향후 개선 계획
 
-## 🎯 기술 스택
-
-- **Frontend**: React 18, Tailwind CSS, Lucide Icons
-- **Backend**: Supabase (PostgreSQL)
-- **Functions**: PL/pgSQL
-- **Triggers**: PostgreSQL Triggers
-- **Timezone**: Asia/Seoul
-
----
-
-## 📈 v3.2 개선 사항
-
-### SQL
-✅ histories 테이블 YYYYMMDD HH:mm 재설계  
-✅ get_session_time_stats 함수 추가  
-✅ 트리거 Asia/Seoul 타임존  
-
-### UI/UX
-✅ GNB 실시간 타이머 (초단위)  
-✅ 캘린더 카드 모달  
-✅ 이력 탭 (상담이력/수업이력)  
-✅ 수업시간 통계 표시  
-
-### 데이터
-✅ 자동 이력 기록  
-✅ 상담↔수업 전환 자동화  
-✅ 이력 연속성 보장  
-
----
+1. **실시간 알림 시스템** (Supabase Realtime)
+2. **모바일 앱 버전** (React Native)
+3. **통계 대시보드** (차트 및 리포트)
+4. **파일 첨부 기능** (Supabase Storage)
+5. **백업/복원 기능**
 
 ## 📞 지원
 
-- **위치**: `/home/user/webapp`
-- **Git**: 7dd925d
-- **버전**: v3.2
-- **날짜**: 2026-02-10
+문제 발생 시:
+1. `INDEX_MODIFICATIONS_GUIDE.md` 확인
+2. Supabase 콘솔에서 로그 확인
+3. 브라우저 콘솔 (F12) 에러 확인
 
 ---
 
-## 📜 라이선스
-
-© 2026 HAHA LAB Corp. All rights reserved.
-
----
-
-## 🎉 변경 이력
-
-### v3.2 (2026-02-10)
-- ✅ histories 테이블 YYYYMMDD HH:mm 형식
-- ✅ GNB 실시간 타이머 (초단위)
-- ✅ 캘린더 모달 개선
-- ✅ 상담이력/수업이력 탭
-- ✅ 주간/월간/총 수업시간 통계
-- ✅ 자동 이력 기록 시스템
-
-### v3.0 (2026-02-08)
-- 초기 프로젝트 구조
-- 기본 CRUD 기능
-- 캘린더 뷰
-
----
-
-**Happy Coding! 🚀**
+**© 2026 HAHA LAB Corp. All rights reserved.**
