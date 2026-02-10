@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>인지 재활: 시공간 두더지 잡기</title>
+    
+    <!-- 필수 라이브러리 CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    
+    <style>
+        /* 폰트 정의 */
+        @font-face {
+            font-family: 'HappinessSansTitle';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2205@1.0/Happiness-Sans-Title.woff2') format('woff2');
+            font-weight: normal; font-display: swap;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+        /* 기본 설정 */
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f0f9ff;
+            color: #0f172a;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+            height: 100vh; width: 100vw;
+            display: flex; flex-direction: column;
+        }
+
+        /* 폰트 클래스 */
+        .font-title { font-family: 'HappinessSansTitle', sans-serif; }
+        .game-font { font-family: 'Jua', sans-serif; }
+        .text-body { font-family: 'Noto Sans KR', sans-serif; }
+
+        /* 화면 전환 유틸리티 */
+        .screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; flex-direction: column; align-items: center; justify-content: center; }
+        .screen.active { display: flex; }
+
+        /* 애니메이션 */
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .pop-in { animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+        @keyframes moleUp { 
+            0% { transform: translateY(100%); } 
+            40% { transform: translateY(0); } 
+            100% { transform: translateY(0); }
+        }
+        
+        /* 두더지 구멍 스타일 */
+        .hole-container {
+            position: relative;
+            overflow: hidden;
+            background: #cbd5e1;
+            border-radius: 50%;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.15);
+            border-bottom: 4px solid rgba(255,255,255,0.5);
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .hole-container:active { transform: scale(0.95); }
+        .hole-container.active-target { background: #bfdbfe; border-color: #60a5fa; } /* 두더지 나올 때 힌트 */
+
+        /* 두더지 캐릭터 */
+        .mole {
+            position: absolute;
+            width: 80%; height: 80%;
+            bottom: -80%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none; /* 클릭은 부모(hole)가 받음 */
+        }
+        .mole.up { transform: translateY(-50%); bottom: 0; }
+        
+        /* 캐릭터 이미지 (CSS로 그리기 대신 이모지/SVG 활용) */
+        .mole-img::after { content: '🐹'; font-size: clamp(2rem, 5vw, 4rem); display: block; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2)); }
+        .bomb-img::after { content: '💣'; font-size: clamp(2rem, 5vw, 4rem); display: block; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.2)); }
+
+        /* 키 가이드 */
+        .key-guide {
+            position: absolute;
+            bottom: 10px;
+            background: rgba(255,255,255,0.8);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: bold;
+            pointer-events: none;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 8홀 그리드 레이아웃 */
+        .grid-4 { grid-template-columns: repeat(2, 1fr); gap: clamp(20px, 4vh, 40px); }
+        .grid-8 { grid-template-columns: repeat(4, 1fr); gap: clamp(10px, 2vh, 20px); }
+
+        /* 모달 스타일 */
+        .modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); }
+        
+        /* 토스트 메시지 */
+        .toast-msg {
+            animation: slideUpFade 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes slideUpFade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body>
+
+    <!-- 1. 메인 메뉴 화면 -->
+    <div id="screen-menu" class="screen active">
+        <div class="w-full max-w-4xl px-4 flex flex-col items-center">
+            <h1 class="font-title text-[clamp(2.5rem,8vw,4.5rem)] text-slate-800 mb-2 leading-tight text-center">
+                시공간 두더지 잡기
+            </h1>
+            <p class="text-xl text-slate-500 mb-10 font-medium">튀어나오는 두더지를 빠르게 잡으세요! (폭탄 조심)</p>
+            
+            <!-- 연령 선택 -->
+            <div class="flex gap-4 mb-8 w-full justify-center">
+                <button onclick="setAgeGroup('child')" class="age-btn bg-white border-2 border-slate-200 text-slate-400 py-3 px-6 rounded-2xl font-bold hover:border-indigo-500 hover:text-indigo-600 transition-all flex-1 max-w-[120px]">아동</button>
+                <button onclick="setAgeGroup('adult')" class="age-btn bg-indigo-50 border-2 border-indigo-500 text-indigo-600 py-3 px-6 rounded-2xl font-bold transition-all flex-1 max-w-[120px]">성인</button>
+                <button onclick="setAgeGroup('senior')" class="age-btn bg-white border-2 border-slate-200 text-slate-400 py-3 px-6 rounded-2xl font-bold hover:border-indigo-500 hover:text-indigo-600 transition-all flex-1 max-w-[120px]">고령자</button>
+            </div>
+
+            <!-- 레벨 그리드 -->
+            <div class="grid grid-cols-3 gap-4 w-full mb-10">
+                <!-- Level 1~3: 4구멍 -->
+                <button onclick="startGame(1)" class="menu-card bg-white p-6 rounded-2xl border-b-4 border-slate-200 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-2 hover:bg-indigo-50">
+                    <span class="text-2xl font-bold text-slate-700">LV.1</span>
+                    <span class="text-sm text-slate-500">4구멍 (느림)</span>
+                </button>
+                <button onclick="startGame(2)" class="menu-card bg-white p-6 rounded-2xl border-b-4 border-slate-200 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-2 hover:bg-indigo-50">
+                    <span class="text-2xl font-bold text-slate-700">LV.2</span>
+                    <span class="text-sm text-slate-500">4구멍 (보통)</span>
+                </button>
+                <button onclick="startGame(3)" class="menu-card bg-white p-6 rounded-2xl border-b-4 border-slate-200 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-2 hover:bg-indigo-50">
+                    <span class="text-2xl font-bold text-slate-700">LV.3</span>
+                    <span class="text-sm text-slate-500">4구멍 (빠름)</span>
+                </button>
+                <!-- Level 4~6: 8구멍 -->
+                <button onclick="startGame(4)" class="menu-card bg-white p-6 rounded-2xl border-b-4 border-indigo-100 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-2 hover:bg-rose-50 ring-2 ring-indigo-100">
+                    <span class="text-2xl font-bold text-rose-500">LV.4</span>
+                    <span class="text-sm text-slate-500">8구멍 (보통)</span>
+                </button>
+                <button onclick="startGame(5)" class="menu-card bg-white p-6 rounded-2xl border-b-4 border-indigo-100 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-2 hover:bg-rose-50 ring-2 ring-indigo-100">
+                    <span class="text-2xl font-bold text-rose-500">LV.5</span>
+                    <span class="text-sm text-slate-500">8구멍 (빠름)</span>
+                </button>
+                <button onclick="startGame(6)" class="menu-card bg-white p-6 rounded-2xl border-b-4 border-indigo-100 active:border-b-0 active:translate-y-1 transition-all flex flex-col items-center gap-2 hover:bg-rose-50 ring-2 ring-indigo-100">
+                    <span class="text-2xl font-bold text-rose-500">LV.6</span>
+                    <span class="text-sm text-slate-500">8구멍 (극한)</span>
+                </button>
+            </div>
+
+            <!-- 하단 정보 -->
+            <div class="flex gap-6 text-slate-400">
+                <div class="flex items-center gap-2"><span class="material-symbols-rounded">touch_app</span> 터치</div>
+                <div class="flex items-center gap-2"><span class="material-symbols-rounded">mouse</span> 마우스</div>
+                <div id="status-gamepad" class="flex items-center gap-2 transition-colors"><span class="material-symbols-rounded">sports_esports</span> 조이스틱</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 게임 플레이 화면 -->
+    <div id="screen-game" class="screen bg-slate-100">
+        <!-- 상단 HUD -->
+        <div class="absolute top-0 w-full px-6 py-6 flex justify-between items-end bg-white/80 backdrop-blur-sm border-b border-slate-200 z-10">
+            <div>
+                <p class="text-xs text-slate-500 font-bold mb-1">LEVEL <span id="hud-level">1</span></p>
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-rounded text-rose-500">favorite</span>
+                    <span id="hud-score" class="text-3xl font-black text-slate-800">0</span>
+                </div>
+            </div>
+            <div class="absolute left-1/2 -translate-x-1/2 top-6 flex flex-col items-center">
+                 <div class="w-48 h-3 bg-slate-200 rounded-full overflow-hidden">
+                     <div id="time-bar" class="h-full bg-indigo-500 w-full transition-all duration-100 ease-linear"></div>
+                 </div>
+                 <p class="text-xs text-slate-400 mt-1 font-bold">REMAINING</p>
+            </div>
+            <button onclick="stopGame()" class="bg-slate-200 hover:bg-rose-100 hover:text-rose-500 text-slate-500 p-2 rounded-xl transition-colors">
+                <span class="material-symbols-rounded text-3xl">pause</span>
+            </button>
+        </div>
+
+        <!-- 게임 영역 (두더지 구멍들) -->
+        <div id="game-board" class="w-full max-w-5xl h-full max-h-[80vh] grid place-content-center p-4 mt-16">
+            <!-- 자바스크립트로 구멍 생성 -->
+        </div>
+
+        <!-- 중앙 메시지 (Combo 등) -->
+        <div id="center-msg" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-6xl font-black text-indigo-600 opacity-0 transition-all z-20 whitespace-nowrap drop-shadow-lg">
+            NICE!
+        </div>
+    </div>
+
+    <!-- 3. 결과 화면 -->
+    <div id="screen-result" class="screen">
+        <div class="w-full max-w-3xl px-6 py-10 flex flex-col h-full overflow-y-auto">
+            <h2 class="text-4xl font-black text-slate-800 mb-2 text-center">훈련 결과 분석</h2>
+            <p class="text-center text-slate-500 mb-8">Clinical Analysis Report</p>
+
+            <!-- 5각 차트 및 핵심 지표 -->
+            <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 mb-6 flex flex-col md:flex-row gap-8 items-center">
+                <div class="w-full md:w-1/2 aspect-square max-w-[300px]">
+                    <canvas id="pentagonChart"></canvas>
+                </div>
+                <div class="w-full md:w-1/2 grid grid-cols-2 gap-4">
+                    <div class="bg-indigo-50 p-4 rounded-2xl">
+                        <p class="text-sm text-slate-500 font-bold">평균 반응 속도</p>
+                        <p id="res-rt" class="text-3xl font-black text-indigo-600">0ms</p>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-2xl">
+                        <p class="text-sm text-slate-500 font-bold">정확도 (ACC)</p>
+                        <p id="res-acc" class="text-3xl font-black text-green-600">0%</p>
+                    </div>
+                    <div class="bg-rose-50 p-4 rounded-2xl">
+                        <p class="text-sm text-slate-500 font-bold">억제 실패 (오류)</p>
+                        <p id="res-err" class="text-3xl font-black text-rose-500">0회</p>
+                    </div>
+                    <div class="bg-amber-50 p-4 rounded-2xl">
+                        <p class="text-sm text-slate-500 font-bold">시공간 주의력</p>
+                        <p id="res-score" class="text-3xl font-black text-amber-500">B+</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 전문 피드백 -->
+            <div class="bg-slate-800 text-white p-6 rounded-2xl shadow-lg mb-8">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-rounded text-yellow-400">medical_services</span>
+                    <h3 class="font-bold text-lg">임상 심리사 소견 (AI Analysis)</h3>
+                </div>
+                <p id="clinical-feedback" class="text-slate-300 leading-relaxed text-body">
+                    데이터 분석 중...
+                </p>
+            </div>
+
+            <button onclick="goToMenu()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg transition-all active:scale-95">
+                확인 (메뉴로 돌아가기)
+            </button>
+        </div>
+    </div>
+
+    <!-- 토스트 컨테이너 -->
+    <div id="toast-container" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2"></div>
+
+    <script>
+        /**
+         * PlayLab Clinical Engine v2.0 - Whack-a-Mole Edition
+         * 1ms Resolution Timing, Artifact Rejection, Age-normed Feedback
+         */
+
+        // --- Audio System (Web Audio API) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playTone(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            
+            if (type === 'POP') { // 두더지 등장
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'HIT') { // 타격 성공
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            } else if (type === 'BOMB') { // 폭탄 (실패)
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+            } else if (type === 'FINISH') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523, now);
+                osc.frequency.setValueAtTime(659, now + 0.1);
+                osc.frequency.setValueAtTime(784, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.6);
+                osc.start(now); osc.stop(now + 0.6);
+            }
+        }
+
+        // --- Game Config & State ---
+        const CONSTANTS = {
+            TOTAL_ROUNDS: 20,
+            BOMB_RATIO: 0.25, // 25% 확률로 폭탄
+            MIN_RT: 100, // 예측 반응 제외
+            MAX_RT: 3000 // 주의 소실 기준
+        };
+
+        let state = {
+            screen: 'MENU',
+            ageGroup: 'adult', // child, adult, senior
+            level: 1,
+            score: 0,
+            round: 0,
+            isPlaying: false,
+            currentTarget: null, // { index: 0, type: 'MOLE'|'BOMB', spawnTime: 0 }
+            data: [], // { rt: number, isCorrect: boolean, type: 'MOLE'|'BOMB' }
+            gamepadIndex: null,
+            timerId: null,
+            moleTimeoutId: null
+        };
+
+        // --- DOM Elements ---
+        const screens = {
+            menu: document.getElementById('screen-menu'),
+            game: document.getElementById('screen-game'),
+            result: document.getElementById('screen-result')
+        };
+        const els = {
+            board: document.getElementById('game-board'),
+            score: document.getElementById('hud-score'),
+            level: document.getElementById('hud-level'),
+            timeBar: document.getElementById('time-bar'),
+            msg: document.getElementById('center-msg'),
+            gamepadStatus: document.getElementById('status-gamepad')
+        };
+
+        // --- Initialization ---
+        function init() {
+            window.addEventListener("gamepadconnected", (e) => {
+                state.gamepadIndex = e.gamepad.index;
+                els.gamepadStatus.classList.add('text-indigo-600', 'font-bold');
+                showToast("🎮 조이스틱 연결됨");
+            });
+            window.addEventListener("gamepaddisconnected", (e) => {
+                state.gamepadIndex = null;
+                els.gamepadStatus.classList.remove('text-indigo-600', 'font-bold');
+                showToast("🔌 조이스틱 연결 해제");
+            });
+            requestAnimationFrame(gameLoop);
+        }
+
+        function setAgeGroup(group) {
+            state.ageGroup = group;
+            document.querySelectorAll('.age-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-50', 'border-indigo-500', 'text-indigo-600');
+                btn.classList.add('bg-white', 'border-slate-200', 'text-slate-400');
+            });
+            // 선택된 버튼 스타일 적용 (간단화)
+            event.target.classList.remove('bg-white', 'border-slate-200', 'text-slate-400');
+            event.target.classList.add('bg-indigo-50', 'border-indigo-500', 'text-indigo-600');
+        }
+
+        function switchScreen(screenName) {
+            state.screen = screenName;
+            Object.values(screens).forEach(el => el.classList.remove('active'));
+            if(screenName === 'MENU') screens.menu.classList.add('active');
+            if(screenName === 'GAME') screens.game.classList.add('active');
+            if(screenName === 'RESULT') screens.result.classList.add('active');
+        }
+
+        // --- Game Logic ---
+        function startGame(level) {
+            state.level = level;
+            state.score = 0;
+            state.round = 0;
+            state.data = [];
+            state.isPlaying = true;
+            
+            els.score.innerText = "0";
+            els.level.innerText = level;
+            
+            renderBoard();
+            switchScreen('GAME');
+            
+            // Start sequence
+            showMessage("READY", 1000);
+            setTimeout(() => {
+                showMessage("START!", 800);
+                nextRound();
+            }, 1200);
+        }
+
+        function stopGame() {
+            state.isPlaying = false;
+            clearTimeout(state.moleTimeoutId);
+            switchScreen('MENU');
+        }
+
+        function renderBoard() {
+            els.board.innerHTML = '';
+            const isAdvanced = state.level >= 4;
+            const holeCount = isAdvanced ? 8 : 4;
+            
+            // Grid Styling
+            els.board.className = `w-full max-w-5xl p-4 grid gap-4 content-center ${isAdvanced ? 'grid-8 max-w-6xl' : 'grid-4 max-w-2xl'}`;
+            // grid-8 for 8 holes (2 rows request -> 4 columns x 2 rows visually handled by CSS grid flow)
+            // User requested "buttons in 2 rows". 8 items / 2 rows = 4 columns.
+            // grid-template-columns: repeat(4, 1fr) ensures 2 rows.
+
+            // Labels mapping
+            // Basic (1-3): Top, Bottom, Left, Right
+            // Advanced (4-6): G, B, L1, L2 / R, Y, R1, R2
+            const labelsBasic = ['⬆️', '⬇️', '⬅️', '➡️']; 
+            // Mapping for Basic: 0:Up, 1:Down, 2:Left, 3:Right based on typical gamepad D-pad layout logic if mapped linearlly
+            // But visual grid 2x2: 0(TL), 1(TR), 2(BL), 3(BR)? 
+            // Let's stick to the prompt's "4 quadrants". 
+            // 0:Up(Top), 1:Down(Bottom), 2:Left, 3:Right is logical but 2x2 grid implies corners.
+            // Let's force a Cross Layout for Basic or just 2x2. 2x2 is safer for responsive.
+            // Basic: 0:TopLeft, 1:TopRight, 2:BotLeft, 3:BotRight.
+            // Key mapping will be adjusted.
+            
+            const labelsAdv = [
+                'Green(X)', 'Blue(Y)', 'L1', 'L2', // Row 1
+                'Red(A)', 'Yellow(B)', 'R1', 'R2'  // Row 2
+            ];
+
+            const colors = isAdvanced 
+                ? ['#4ade80', '#3b82f6', '#94a3b8', '#64748b', '#f43f5e', '#facc15', '#94a3b8', '#64748b']
+                : ['#3b82f6', '#f43f5e', '#4ade80', '#facc15']; // Blue, Red, Green, Yellow
+
+            for(let i=0; i<holeCount; i++) {
+                const hole = document.createElement('div');
+                hole.className = 'hole-container w-full aspect-square bg-slate-200 rounded-3xl relative';
+                hole.id = `hole-${i}`;
+                hole.onclick = () => handleInput(i);
+                
+                // Key Guide Label
+                const keyLabel = document.createElement('div');
+                keyLabel.className = 'key-guide';
+                keyLabel.innerText = isAdvanced ? labelsAdv[i] : (['▲', '▼', '◀', '▶'][i] || i);
+                if (!isAdvanced) {
+                    // Fix labels for Basic: 0(Up), 1(Down), 2(Left), 3(Right) doesn't map to grid 2x2 cleanly.
+                    // Let's use 0(TL-Green), 1(TR-Blue), 2(BL-Red), 3(BR-Yellow) matches ABXY colors roughly.
+                    // Overwrite for visual clarity
+                    const basicLabels = ['Green', 'Blue', 'Red', 'Yellow'];
+                    keyLabel.innerText = basicLabels[i];
+                    keyLabel.style.color = colors[i];
+                } else {
+                     keyLabel.style.color = colors[i];
+                }
+
+                hole.appendChild(keyLabel);
+                els.board.appendChild(hole);
+            }
+        }
+
+        function nextRound() {
+            if(!state.isPlaying) return;
+            if(state.round >= CONSTANTS.TOTAL_ROUNDS) {
+                finishGame();
+                return;
+            }
+
+            state.round++;
+            
+            // Difficulty Settings
+            const baseTime = [2000, 1500, 1000, 1500, 1000, 800][state.level-1];
+            const stayTime = baseTime * (0.8 + Math.random() * 0.4); // Variation
+            
+            // Decide Target
+            const isBomb = Math.random() < CONSTANTS.BOMB_RATIO;
+            const holeCount = state.level >= 4 ? 8 : 4;
+            const targetIndex = Math.floor(Math.random() * holeCount);
+            
+            state.currentTarget = {
+                index: targetIndex,
+                type: isBomb ? 'BOMB' : 'MOLE',
+                spawnTime: performance.now(),
+                active: true
+            };
+
+            // Visual Update
+            const holeEl = document.getElementById(`hole-${targetIndex}`);
+            const charEl = document.createElement('div');
+            charEl.className = `mole ${isBomb ? 'bomb-img' : 'mole-img'}`;
+            holeEl.appendChild(charEl);
+            holeEl.classList.add('active-target');
+
+            // Animation
+            requestAnimationFrame(() => charEl.classList.add('up'));
+            playTone('POP');
+
+            // Timer Bar
+            els.timeBar.style.transition = `width ${stayTime}ms linear`;
+            els.timeBar.style.width = '0%';
+
+            // Timeout Logic
+            state.moleTimeoutId = setTimeout(() => {
+                if(state.currentTarget && state.currentTarget.active) {
+                    // Missed (Omission Error)
+                    if(state.currentTarget.type === 'MOLE') {
+                        recordResult(false, 'MISS');
+                    } else {
+                        // Correct Rejection (Success)
+                        recordResult(true, 'PASS');
+                    }
+                    clearHole(targetIndex);
+                }
+            }, stayTime);
+        }
+
+        function handleInput(holeIndex) {
+            if(!state.isPlaying || !state.currentTarget || !state.currentTarget.active) return;
+            
+            const target = state.currentTarget;
+            
+            if(holeIndex === target.index) {
+                // Hit Logic
+                if(target.type === 'MOLE') {
+                    // Success
+                    const rt = performance.now() - target.spawnTime;
+                    recordResult(true, 'HIT', rt);
+                    playTone('HIT');
+                    showFeedbackEffect(holeIndex, 'HIT');
+                } else {
+                    // Bomb Hit (Commission Error)
+                    recordResult(false, 'BOMB_HIT');
+                    playTone('BOMB');
+                    showFeedbackEffect(holeIndex, 'BAD');
+                    document.body.style.backgroundColor = '#fee2e2';
+                    setTimeout(() => document.body.style.backgroundColor = '#f0f9ff', 100);
+                }
+                clearHole(holeIndex);
+            } else {
+                // Wrong Hole (Spatial Error)
+                // Optional: Penalize or just ignore? Usually ignore in Whack-a-Mole unless strict.
+                // Let's play a dull sound.
+                // playTone('BOMB');
+            }
+        }
+
+        function clearHole(index) {
+            const hole = document.getElementById(`hole-${index}`);
+            if(hole) {
+                hole.classList.remove('active-target');
+                hole.innerHTML = ''; // Remove mole
+                // Restore label
+                const isAdvanced = state.level >= 4;
+                const labelsAdv = ['Green(X)', 'Blue(Y)', 'L1', 'L2', 'Red(A)', 'Yellow(B)', 'R1', 'R2'];
+                const keyLabel = document.createElement('div');
+                keyLabel.className = 'key-guide';
+                if(isAdvanced) {
+                    keyLabel.innerText = labelsAdv[index];
+                } else {
+                    keyLabel.innerText = ['Green', 'Blue', 'Red', 'Yellow'][index];
+                }
+                hole.appendChild(keyLabel);
+            }
+            state.currentTarget = null;
+            clearTimeout(state.moleTimeoutId);
+            
+            // Reset Time Bar
+            els.timeBar.style.transition = 'none';
+            els.timeBar.style.width = '100%';
+            
+            // Next Round Delay
+            setTimeout(nextRound, 500);
+        }
+
+        function recordResult(isCorrect, type, rt = 0) {
+            if(isCorrect && type === 'HIT') state.score += 100;
+            if(!isCorrect && type === 'BOMB_HIT') state.score = Math.max(0, state.score - 50);
+            
+            els.score.innerText = state.score;
+            
+            state.data.push({
+                round: state.round,
+                isCorrect: isCorrect,
+                type: type, // HIT, MISS, PASS(Bomb ignore), BOMB_HIT
+                rt: rt
+            });
+        }
+
+        function showFeedbackEffect(index, type) {
+            const hole = document.getElementById(`hole-${index}`);
+            const effect = document.createElement('div');
+            effect.className = 'absolute inset-0 flex items-center justify-center font-black text-4xl animate-bounce z-10';
+            effect.innerText = type === 'HIT' ? '100!' : '💥';
+            effect.style.color = type === 'HIT' ? '#4ade80' : '#f43f5e';
+            hole.appendChild(effect);
+        }
+
+        function showMessage(text, duration) {
+            els.msg.innerText = text;
+            els.msg.style.opacity = 1;
+            els.msg.style.transform = 'translate(-50%, -50%) scale(1.2)';
+            setTimeout(() => {
+                els.msg.style.opacity = 0;
+                els.msg.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, duration);
+        }
+
+        // --- Gamepad Input ---
+        function gameLoop() {
+            pollGamepad();
+            requestAnimationFrame(gameLoop);
+        }
+
+        let lastBtnState = {};
+
+        function pollGamepad() {
+            if (state.gamepadIndex === null) return;
+            const gp = navigator.getGamepads()[state.gamepadIndex];
+            if (!gp) return;
+
+            // Button Mapping
+            // Standard Gamepad: 0:A(Bot), 1:B(Rit), 2:X(Lft), 3:Y(Top), 4:LB, 5:RB, 6:LT, 7:RT
+            
+            // Logic for Level 1-3 (4 Holes):
+            // 0(Green/Left) -> B2(X)
+            // 1(Blue/Top) -> B3(Y)
+            // 2(Red/Bottom) -> B0(A)
+            // 3(Yellow/Right) -> B1(B)
+            
+            // Logic for Level 4-6 (8 Holes):
+            // Requested: Green(B2), Blue(B3), B4, B6 (Top Row -> Indices 0,1,2,3)
+            // Requested: Red(B0), Yellow(B1), B5, B7 (Bot Row -> Indices 4,5,6,7)
+            
+            const map4 = { 2:0, 3:1, 0:2, 1:3 }; // BtnIndex : HoleIndex
+            const map8 = { 2:0, 3:1, 4:2, 6:3, 0:4, 1:5, 5:6, 7:7 };
+
+            const isAdvanced = state.level >= 4;
+            const map = isAdvanced ? map8 : map4;
+
+            gp.buttons.forEach((btn, idx) => {
+                if (btn.pressed && !lastBtnState[idx]) {
+                    if (map.hasOwnProperty(idx)) {
+                        handleInput(map[idx]);
+                    }
+                    // D-Pad Fallback for Basic Levels
+                    if (!isAdvanced) {
+                        if (idx === 12) handleInput(1); // Up -> Blue(1)
+                        if (idx === 13) handleInput(2); // Down -> Red(2)
+                        if (idx === 14) handleInput(0); // Left -> Green(0)
+                        if (idx === 15) handleInput(3); // Right -> Yellow(3)
+                        // Note: DOM order is Green, Blue, Red, Yellow (0,1,2,3)
+                    }
+                }
+                lastBtnState[idx] = btn.pressed;
+            });
+        }
+
+        // --- Results & Analysis ---
+        function finishGame() {
+            playTone('FINISH');
+            switchScreen('RESULT');
+            
+            // Analyze Data
+            const hits = state.data.filter(d => d.type === 'HIT');
+            const avgRT = hits.length > 0 ? Math.round(hits.reduce((a,b) => a + b.rt, 0) / hits.length) : 0;
+            const accuracy = Math.round((hits.length / (state.data.filter(d => d.type === 'MOLE').length || 1)) * 100);
+            const errors = state.data.filter(d => d.type === 'BOMB_HIT').length;
+            
+            // DOM Update
+            document.getElementById('res-rt').innerText = `${avgRT}ms`;
+            document.getElementById('res-acc').innerText = `${accuracy}%`;
+            document.getElementById('res-err').innerText = `${errors}회`;
+            
+            // Score Grade
+            let grade = 'C';
+            if(accuracy > 90 && errors === 0) grade = 'A+';
+            else if(accuracy > 80) grade = 'B';
+            document.getElementById('res-score').innerText = grade;
+
+            // Generate Clinical Feedback
+            generateFeedback(avgRT, accuracy, errors);
+            
+            // Render Chart
+            renderChart(avgRT, accuracy, errors);
+        }
+
+        function generateFeedback(rt, acc, err) {
+            let text = "";
+            const age = state.ageGroup;
+            
+            // Logic based on Prompt
+            if (age === 'child') {
+                if (err > 2) text = "충동성이 다소 높게 측정되었습니다. 두더지가 나왔을 때 바로 누르기보다, '폭탄인지 아닌지' 한 번 더 확인하는 '잠깐 멈춤' 연습이 필요합니다.";
+                else if (acc < 70) text = "주의력이 분산되는 경향이 있습니다. 한 번에 길게 하기보다 짧게 집중하는 훈련을 반복해주세요.";
+                else text = "매우 훌륭한 반응 속도와 억제력을 보여주었습니다!";
+            } else if (age === 'adult') {
+                if (rt > 600 && acc > 90) text = "정확도는 높으나 반응 속도가 다소 지연되었습니다. 인지 피로(Brain Fog)가 의심되니 충분한 휴식 후 재도전해보세요.";
+                else if (err > 3) text = "스트레스로 인한 과각성 상태일 수 있습니다. 폭탄을 구별하는 억제 기제(Inhibition) 훈련에 집중하세요.";
+                else text = "안정적인 인지 처리 속도와 실행 기능을 유지하고 있습니다.";
+            } else { // senior
+                if (rt > 800) text = "반응 속도가 자연스러운 노화 과정보다 조금 느릴 수 있습니다. 매일 10분씩 이 훈련을 통해 뇌를 자극해주세요.";
+                else if (err > 2) text = "판단력은 좋으시나 순간적인 실수가 있었습니다. 천천히 정확하게 구별하는 것이 더 중요합니다.";
+                else text = "나이에 비해 매우 뛰어난 시공간 주의력과 판단력을 가지고 계십니다!";
+            }
+            document.getElementById('clinical-feedback').innerText = text;
+        }
+
+        let chartInstance = null;
+        function renderChart(rt, acc, err) {
+            const ctx = document.getElementById('pentagonChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            
+            // Normalize Scores (0-100)
+            const scoreRT = Math.max(0, 100 - (rt / 10)); // Lower RT is better
+            const scoreAcc = acc;
+            const scoreInhib = Math.max(0, 100 - (err * 20));
+            
+            chartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['처리속도', '주의력', '충동억제', '공간지각', '실행기능'],
+                    datasets: [{
+                        label: '나의 인지 능력',
+                        data: [scoreRT, scoreAcc, scoreInhib, scoreAcc, (scoreRT+scoreInhib)/2],
+                        backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                        borderColor: '#4f46e5',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#4f46e5'
+                    }]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { display: false },
+                            grid: { color: '#e2e8f0' }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function showToast(msg) {
+            const t = document.createElement('div');
+            t.className = 'toast-msg bg-slate-800 text-white px-4 py-2 rounded-full shadow-lg text-sm';
+            t.innerText = msg;
+            document.getElementById('toast-container').appendChild(t);
+            setTimeout(() => t.remove(), 2000);
+        }
+
+        function goToMenu() {
+            switchScreen('MENU');
+        }
+
+        // Run
+        init();
+    </script>
+</body>
+</html>
