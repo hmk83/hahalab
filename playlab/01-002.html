@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PlayLab: Visuospatial Attention Training</title>
+    <script src="playlab-core.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    <style>
+        @font-face {
+            font-family: 'HappinessSansTitle';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2205@1.0/Happiness-Sans-Title.woff2') format('woff2');
+            font-weight: normal;
+            font-display: swap;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .font-title {
+            font-family: 'HappinessSansTitle', sans-serif;
+        }
+
+        .font-medical {
+            font-family: 'Noto Sans KR', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        /* Timer Bar */
+        .timer-container {
+            width: 100%;
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .timer-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            transition: width 1s linear;
+        }
+
+        /* Mole Grid Layouts */
+        .mole-grid {
+            display: grid;
+            gap: 16px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            border: 4px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 20px 50px -10px rgba(0, 80, 70, 0.15);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            justify-content: center;
+            /* Center grid items */
+        }
+
+        /* 4개 모드 (2x2) */
+        .mole-grid.layout-4 {
+            grid-template-columns: repeat(2, 1fr);
+            width: 100%;
+            max-width: 420px;
+            aspect-ratio: 1.1 / 1;
+        }
+
+        /* 6개 모드 (3x2) */
+        .mole-grid.layout-6 {
+            grid-template-columns: repeat(3, 1fr);
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 1.6 / 1;
+        }
+
+        /* 8개 모드 (4x2) */
+        .mole-grid.layout-8 {
+            grid-template-columns: repeat(4, 1fr);
+            width: 100%;
+            max-width: 760px;
+            aspect-ratio: 2.2 / 1;
+        }
+
+        .hole-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #cbd5e1;
+            border-radius: 50%;
+            overflow: hidden;
+            cursor: pointer;
+            border-bottom: 4px solid rgba(0, 0, 0, 0.1);
+            /* Subtle depth */
+            transition: transform 0.1s;
+        }
+
+        .hole-container:active {
+            transform: scale(0.95);
+        }
+
+        .hole-container.hidden {
+            display: none !important;
+        }
+
+        /* Color Fill (Background) */
+        .hole-fill {
+            position: absolute;
+            inset: 0;
+            opacity: 1;
+            z-index: 1;
+            box-shadow: inset 0 10px 20px rgba(0, 0, 0, 0.3), inset 0 -5px 10px rgba(255, 255, 255, 0.2);
+        }
+
+        /* Color Definitions */
+        .fill-green {
+            background-color: #4ADE80;
+        }
+
+        /* B3 */
+        .fill-blue {
+            background-color: #60A5FA;
+        }
+
+        /* B2 */
+        .fill-white {
+            background-color: #F1F5F9;
+        }
+
+        /* B4 */
+        .fill-indigo {
+            background-color: #818CF8;
+        }
+
+        /* B6 */
+
+        .fill-red {
+            background-color: #F87171;
+        }
+
+        /* B1 */
+        .fill-yellow {
+            background-color: #FCD34D;
+        }
+
+        /* B0 */
+        .fill-orange {
+            background-color: #FB923C;
+        }
+
+        /* B5 */
+        .fill-violet {
+            background-color: #A78BFA;
+        }
+
+        /* B7 */
+
+        /* Mole Character */
+        .mole-character {
+            position: absolute;
+            left: 50%;
+            width: 85%;
+            height: 95%;
+            transform: translateX(-50%) translateY(110%);
+            z-index: 10;
+            /* Ensure on top of color fill */
+            background-repeat: no-repeat;
+            background-position: center top;
+            background-size: contain;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cellipse cx='100' cy='120' rx='70' ry='60' fill='%237d5a44' /%3E%3Cellipse cx='100' cy='110' rx='40' ry='30' fill='%23d2a679' /%3E%3Ccircle cx='80' cy='95' r='6' fill='%231a1a1a' /%3E%3Ccircle cx='120' cy='95' r='6' fill='%231a1a1a' /%3E%3Ccircle cx='100' cy='105' r='8' fill='%23ff9999' /%3E%3Cline x1='65' y1='110' x2='35' y2='105' stroke='%231a1a1a' stroke-width='2' /%3E%3Cline x1='65' y1='115' x2='35' y2='120' stroke='%231a1a1a' stroke-width='2' /%3E%3Cline x1='135' y1='110' x2='165' y2='105' stroke='%231a1a1a' stroke-width='2' /%3E%3Cline x1='135' y1='115' x2='165' y2='120' stroke='%231a1a1a' stroke-width='2' /%3E%3Cpath d='M45 140 Q 35 140 35 155' fill='none' stroke='%237d5a44' stroke-width='12' stroke-linecap='round' /%3E%3Cpath d='M155 140 Q 165 140 165 155' fill='none' stroke='%237d5a44' stroke-width='12' stroke-linecap='round' /%3E%3C/svg%3E");
+            will-change: transform;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .mole-character.active {
+            transform: translateX(-50%) translateY(15%);
+        }
+
+        .mole-character.whacked {
+            filter: brightness(1.3) sepia(0.5) hue-rotate(-30deg) saturate(2);
+            transform: translateX(-50%) translateY(40%) scale(0.9) rotate(15deg);
+            transition: transform 0.1s ease-out;
+        }
+
+        /* Improved Hit Effect (Star/Bang Shape) */
+        .hit-effect {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 140px;
+            height: 140px;
+            /* Comic style starburst */
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M100 20 L125 70 L180 70 L135 105 L150 160 L100 130 L50 160 L65 105 L20 70 L75 70 Z' fill='%23FCD34D' stroke='%23F59E0B' stroke-width='8' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            pointer-events: none;
+            z-index: 50;
+            /* Top most priority */
+            opacity: 0;
+        }
+
+        .hit-effect.boom {
+            animation: boomAnim 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes boomAnim {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0.5) rotate(-45deg);
+            }
+
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.3) rotate(10deg);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1.5) rotate(0deg);
+            }
+        }
+
+        /* UI Components */
+        .menu-btn {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 0 #cbd5e1;
+        }
+
+        .menu-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .menu-btn.active {
+            border-color: #14b8a6;
+            background-color: #f0fdfa;
+            color: #0d9488;
+            box-shadow: 0 0 0 2px #14b8a6;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="w-full h-full relative bg-slate-50">
+        <!-- SCREEN: MENU -->
+        <div id="screen-menu" class="w-full h-full flex flex-col items-center justify-center p-6">
+            <div class="text-center mb-8">
+                <div
+                    class="inline-block px-4 py-1.5 rounded-full bg-teal-100 text-teal-800 text-xs font-bold mb-3 tracking-wide">
+                    PLAYLAB CLINICAL MODULE
+                </div>
+                <h1 class="text-5xl md:text-6xl font-title text-slate-800 mb-2">두더지 잡기</h1>
+                <p class="text-slate-500 font-medical text-lg">시공간 주의력 및 반응속도 훈련</p>
+            </div>
+
+            <div class="w-full max-w-4xl bg-white rounded-3xl shadow-sm border border-slate-200 p-6 mb-8">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-rounded text-teal-500">medical_information</span>
+                    <h3 class="font-bold text-slate-700">대상 그룹 선택 (Target Group)</h3>
+                </div>
+                <div class="grid grid-cols-5 gap-3 mb-6">
+                    <button class="menu-btn group-btn active" data-group="GROUP_A_TODDLER">
+                        <div class="text-sm font-bold">유아</div>
+                        <div class="text-[10px] text-slate-400">4 Holes (2x2)</div>
+                    </button>
+                    <button class="menu-btn group-btn" data-group="GROUP_B_ELEMENTARY">
+                        <div class="text-sm font-bold">초등</div>
+                        <div class="text-[10px] text-slate-400">6 Holes (3x2)</div>
+                    </button>
+                    <button class="menu-btn group-btn" data-group="GROUP_C_TEEN">
+                        <div class="text-sm font-bold">청소년</div>
+                        <div class="text-[10px] text-slate-400">8 Holes (4x2)</div>
+                    </button>
+                    <button class="menu-btn group-btn" data-group="GROUP_B_ADULT">
+                        <div class="text-sm font-bold">성인</div>
+                        <div class="text-[10px] text-slate-400">8 Holes (4x2)</div>
+                    </button>
+                    <button class="menu-btn group-btn" data-group="GROUP_A_SENIOR">
+                        <div class="text-sm font-bold">고령자</div>
+                        <div class="text-[10px] text-slate-400">4 Holes (2x2)</div>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-rounded text-teal-500">bar_chart</span>
+                    <h3 class="font-bold text-slate-700">난이도 설정 (Level Balancing)</h3>
+                </div>
+                <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    <!-- Levels generated by JS -->
+                    <div id="level-container" class="contents"></div>
+                </div>
+            </div>
+
+            <!-- Input Devices Info -->
+            <div class="flex gap-8 text-slate-400 opacity-80">
+                <div class="flex flex-col items-center gap-1">
+                    <span class="material-symbols-rounded">touch_app</span>
+                    <span class="text-[10px] font-bold">TOUCH</span>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                    <span class="material-symbols-rounded">mouse</span>
+                    <span class="text-[10px] font-bold">MOUSE</span>
+                </div>
+                <div class="flex flex-col items-center gap-1 text-teal-500">
+                    <span class="material-symbols-rounded">videogame_asset</span>
+                    <span class="text-[10px] font-bold">GAMEPAD</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN: GAME -->
+        <div id="screen-game" class="hidden w-full h-full game-background flex flex-col relative">
+            <!-- HUD -->
+            <div
+                class="w-full h-20 bg-white/90 backdrop-blur-md border-b border-white/50 px-6 flex items-center justify-between shrink-0 z-20">
+                <div class="flex items-center gap-6">
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 tracking-wider">LEVEL</div>
+                        <div class="text-2xl font-black text-teal-600 leading-none" id="display-level">1</div>
+                    </div>
+                    <div class="h-8 w-px bg-slate-200"></div>
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 tracking-wider">SCORE</div>
+                        <div class="text-2xl font-black text-slate-700 leading-none" id="display-score">0</div>
+                    </div>
+                </div>
+
+                <div class="flex-1 max-w-md mx-8">
+                    <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                        <span>TIME</span>
+                        <span id="timer-text">60s</span>
+                    </div>
+                    <div class="timer-container">
+                        <div id="timer-bar" class="timer-bar" style="width: 100%"></div>
+                    </div>
+                </div>
+
+                <button onclick="stopGame()" class="p-2 rounded-full hover:bg-rose-50 text-rose-400 transition-colors">
+                    <span class="material-symbols-rounded">logout</span>
+                </button>
+            </div>
+
+            <!-- Game Area -->
+            <div class="flex-grow flex flex-col items-center justify-center p-4 relative z-10">
+                <div id="grid-container" class="mole-grid layout-4">
+                    <!-- Holes injected by JS -->
+                </div>
+            </div>
+
+            <!-- Clinical Feedback Overlay (Bottom) -->
+            <div
+                class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-white/80 backdrop-blur px-6 py-2 rounded-full border border-white shadow-lg pointer-events-none z-20">
+                <p class="text-sm font-medical text-teal-800 font-medium flex items-center gap-2">
+                    <span class="material-symbols-rounded text-lg">visibility</span>
+                    <span id="instruction-text">색상이 켜진 곳에 두더지가 나타납니다!</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- SCREEN: RESULT -->
+        <div id="screen-result" class="hidden w-full h-full relative overflow-y-auto bg-white">
+            <div
+                class="absolute top-0 w-full h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shadow-sm">
+                <div class="font-bold text-slate-700 text-lg">결과 리포트</div>
+                <button onclick="goHome()"
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-xl transition-colors flex items-center gap-1 px-3">
+                    <span class="material-symbols-rounded text-sm">home</span>
+                    <span class="text-sm font-bold">홈으로</span>
+                </button>
+            </div>
+
+            <div class="max-w-4xl mx-auto px-4 py-8 mt-16">
+                <!-- Tabs: 쉬운 요약 / 전문 분석 -->
+                <div class="flex bg-slate-100 p-1 rounded-2xl mb-6">
+                    <button onclick="toggleReportMode('EASY')" id="tab-easy" class="tab-btn active">쉬운 요약</button>
+                    <button onclick="toggleReportMode('CLINICAL')" id="tab-clinical" class="tab-btn">전문 분석</button>
+                </div>
+
+                <!-- 1. 쉬운 요약 화면 (Easy Mode) -->
+                <div id="report-easy" class="pop-in">
+                    <div class="bg-white rounded-3xl p-8 border-2 border-slate-100 shadow-xl text-center mb-6">
+                        <div class="inline-block p-4 rounded-full bg-indigo-50 mb-4">
+                            <span class="material-symbols-rounded text-5xl text-indigo-500"
+                                id="easy-icon">emoji_events</span>
+                        </div>
+                        <h2 class="text-3xl font-black text-slate-800 mb-2" id="easy-title">참 잘했어요!</h2>
+                        <p class="text-lg text-slate-500 mb-8 whitespace-pre-line" id="easy-desc">정말 빠르고 정확하게 문제를 해결했어요.
+                        </p>
+
+                        <div class="flex justify-center gap-4 mb-4">
+                            <div class="bg-slate-50 p-4 rounded-2xl w-full max-w-[150px]">
+                                <span class="text-xs font-bold text-slate-400 block mb-1">나의 점수</span>
+                                <span class="text-3xl font-black text-indigo-600" id="easy-score">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl w-full max-w-[150px]">
+                                <span class="text-xs font-bold text-slate-400 block mb-1">정확도</span>
+                                <span class="text-3xl font-black text-rose-500" id="easy-acc">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-indigo-50 rounded-2xl p-6 text-center border border-indigo-100">
+                        <span class="text-indigo-900 font-bold text-lg">💡 닥터 플레이의 한마디</span>
+                        <p class="text-indigo-700 mt-2 font-medium" id="easy-advice">매일 10분씩 연습하면 뇌가 더 튼튼해져요!</p>
+                    </div>
+                </div>
+
+                <!-- 2. 전문 분석 화면 (Clinical Mode) -->
+                <div id="report-clinical" class="hidden pop-in">
+                    <div class="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-6">
+                        <div>
+                            <h2 class="text-2xl font-black text-slate-900 font-title">Clinical Detail</h2>
+                            <p class="text-xs text-slate-500 font-medical mt-1">Mole Whack - Attention & Reaction
+                                Analysis</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold text-slate-400">PATIENT GROUP</p>
+                            <p class="text-base font-bold text-indigo-600" id="report-age-group">TODDLER</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Radar Chart -->
+                        <div
+                            class="bg-slate-50 rounded-2xl p-4 flex flex-col items-center justify-center border border-slate-200 shadow-inner relative">
+                            <canvas id="radarChart"></canvas>
+
+                            <!-- 지표 설명 섹션 -->
+                            <div id="metric-descriptions" class="mt-6 w-full text-left space-y-2">
+                                <!-- JavaScript로 동적으로 채워짐 -->
+                            </div>
+                        </div>
+
+                        <!-- Metrics Cards -->
+                        <div class="flex flex-col justify-between gap-4">
+                            <div class="bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs font-bold text-slate-400">TOTAL SCORE</span>
+                                </div>
+                                <div class="flex items-end gap-2">
+                                    <span class="text-4xl font-black" id="report-total-score">0</span>
+                                    <span class="text-base font-medium mb-1" id="report-risk-label">-</span>
+                                </div>
+                                <div class="w-full bg-slate-700 h-1.5 rounded-full mt-4 overflow-hidden">
+                                    <div id="score-bar" class="h-full bg-gradient-to-r from-emerald-400 to-teal-500"
+                                        style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 h-full">
+                                <div class="metric-card"><span class="metric-label">평균 RT</span><span
+                                        class="metric-value text-indigo-600" id="val-rt">0ms</span></div>
+                                <div class="metric-card"><span class="metric-label">정확도</span><span
+                                        class="metric-value text-rose-500" id="val-acc">0%</span></div>
+                                <div class="metric-card"><span class="metric-label">누락률</span><span
+                                        class="metric-value text-amber-600" id="val-omission">0%</span></div>
+                                <div class="metric-card"><span class="metric-label">좌/우 편향</span><span
+                                        class="metric-value text-teal-600" id="val-bias">균형</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 임상적 판단 및 전문 소견 -->
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 mb-8">
+                        <h3 class="text-base font-bold text-indigo-900 flex items-center gap-2 mb-3">
+                            <span class="material-symbols-rounded">neurology</span>
+                            임상적 판단 및 전문 소견 (Professional Clinical Assessment)
+                        </h3>
+                        <div class="font-medical text-slate-700 text-sm leading-relaxed space-y-2"
+                            id="report-feedback-text">
+                            분석 중...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center gap-4 mt-8 opacity-60">
+                    <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+                        * 본 결과는 의료법 상의 확정 진단이 아니며, 보조적 진단 자료(Auxiliary Diagnostic Data)로 활용되어야 합니다.<br>
+                        Phase 1/2 Clinical Validation in progress.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- 1. CONFIGURATION & DATA TABLES ---
+
+        // Physical Button Mapping (Row-Major Order for correct Grid flow)
+        // Row 1: Green(B2), Blue(B3), White(B4), Indigo(B6)
+        // Row 2: Red(B0), Yellow(B1), Orange(B5), Violet(B7)
+        // indices 0~3 = Row 1, indices 4~7 = Row 2
+        const HOLES_DEF = [
+            // Row 1
+            { id: 0, btn: 2, color: 'green', side: 'L' },
+            { id: 1, btn: 3, color: 'blue', side: 'L' },
+            { id: 2, btn: 4, color: 'white', side: 'R' },
+            { id: 3, btn: 6, color: 'indigo', side: 'R' },
+            // Row 2
+            { id: 4, btn: 0, color: 'red', side: 'L' },
+            { id: 5, btn: 1, color: 'yellow', side: 'L' },
+            { id: 6, btn: 5, color: 'orange', side: 'R' },
+            { id: 7, btn: 7, color: 'violet', side: 'R' }
+        ];
+
+        // Group Configuration (Hole Count & Difficulty)
+        // 4 Holes: Indices 0,1 (Row1) & 4,5 (Row2)
+        // 6 Holes: Indices 0,1,2 (Row1) & 4,5,6 (Row2)
+        // 8 Holes: All
+        const AGE_CONFIG = {
+            'GROUP_A_TODDLER': {
+                holeIndices: [0, 1, 4, 5],
+                gridClass: 'layout-4',
+                // [CHANGED] 난이도 쉽게 조정 (show/wait 시간 증가)
+                speeds: [
+                    { show: 3000, wait: 2000 }, // L1
+                    { show: 2700, wait: 1700 }, // L2
+                    { show: 2400, wait: 1400 }, // L3
+                    { show: 2100, wait: 1200 }, // L4
+                    { show: 1800, wait: 1000 }, // L5
+                    { show: 1500, wait: 900 }   // L6
+                ]
+            },
+            'GROUP_A_SENIOR': {
+                holeIndices: [0, 1, 4, 5],
+                gridClass: 'layout-4',
+                // [CHANGED] 난이도 쉽게 조정
+                speeds: [
+                    { show: 3000, wait: 2000 }, // L1
+                    { show: 2700, wait: 1700 }, // L2
+                    { show: 2400, wait: 1400 }, // L3
+                    { show: 2100, wait: 1200 }, // L4
+                    { show: 1800, wait: 1000 }, // L5
+                    { show: 1500, wait: 900 }   // L6
+                ]
+            },
+            'GROUP_B_ELEMENTARY': {
+                holeIndices: [0, 1, 2, 4, 5, 6],
+                gridClass: 'layout-6',
+                // [CHANGED] 난이도 쉽게 조정
+                speeds: [
+                    { show: 1800, wait: 1200 }, // L1
+                    { show: 1500, wait: 1000 }, // L2
+                    { show: 1300, wait: 900 },  // L3
+                    { show: 1100, wait: 800 },  // L4
+                    { show: 900, wait: 700 },   // L5
+                    { show: 700, wait: 500 }    // L6
+                ]
+            },
+            'GROUP_B_ADULT': {
+                holeIndices: [0, 1, 2, 3, 4, 5, 6, 7],
+                gridClass: 'layout-8',
+                // [CHANGED] 난이도 쉽게 조정
+                speeds: [
+                    { show: 1800, wait: 1200 }, // L1
+                    { show: 1500, wait: 1000 }, // L2
+                    { show: 1300, wait: 900 },  // L3
+                    { show: 1100, wait: 800 },  // L4
+                    { show: 900, wait: 700 },   // L5
+                    { show: 700, wait: 500 }    // L6
+                ]
+            },
+            'GROUP_C_TEEN': {
+                holeIndices: [0, 1, 2, 3, 4, 5, 6, 7],
+                gridClass: 'layout-8',
+                // [CHANGED] 난이도 쉽게 조정
+                speeds: [
+                    { show: 1500, wait: 1000 }, // L1
+                    { show: 1300, wait: 800 },  // L2
+                    { show: 1100, wait: 700 },  // L3
+                    { show: 900, wait: 600 },   // L4
+                    { show: 700, wait: 500 },   // L5
+                    { show: 600, wait: 400 }    // L6
+                ]
+            }
+        };
+
+        const LEVEL_SPECS = [
+            { id: 1, desc: '집중 탐색' }, { id: 2, desc: '반응 속도' }, { id: 3, desc: '시야 확장' },
+            { id: 4, desc: '주의 전환' }, { id: 5, desc: '복합 정보' }, { id: 6, desc: '한계 돌파' }
+        ];
+
+        // --- 2. STATE MANAGEMENT ---
+        let state = {
+            group: 'GROUP_A_TODDLER',
+            level: 1, score: 0, timeLeft: 30, isPlaying: false, // [CHANGED] 60 → 30이초
+            activeMoles: [],
+            gameStartTime: null,
+            session: { totalSpawns: 0, success: 0, omission: 0, commission: 0, rtSum: 0, leftSpawns: 0, leftHits: 0, rightSpawns: 0, rightHits: 0 }
+        };
+
+        let timers = { game: null, spawn: null };
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // --- 3. INITIALIZATION & UI ---
+        function init() {
+            renderLevelButtons();
+            setupGroupButtons();
+            setupGamepad();
+        }
+
+        function setupGroupButtons() {
+            document.querySelectorAll('.group-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.group = btn.dataset.group;
+                };
+            });
+        }
+
+        function renderLevelButtons() {
+            const container = document.getElementById('level-container');
+            container.innerHTML = '';
+            LEVEL_SPECS.forEach(lv => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-slate-50 border border-slate-200 rounded-xl p-2 hover:bg-teal-50 hover:border-teal-200 transition-colors flex flex-col items-center justify-center';
+                btn.onclick = () => startGame(lv.id);
+                btn.innerHTML = `<span class="text-sm font-black text-slate-700">Lv.${lv.id}</span>`;
+                container.appendChild(btn);
+            });
+        }
+
+        // --- 4. GAME LOGIC ---
+        function startGame(level) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            state.level = level;
+            state.score = 0;
+            state.timeLeft = 30; // [CHANGED] 60 → 30이초
+            state.isPlaying = true;
+            state.activeMoles = [];
+            state.gameStartTime = performance.now();
+            state.session = { totalSpawns: 0, success: 0, omission: 0, commission: 0, rtSum: 0, leftSpawns: 0, leftHits: 0, rightSpawns: 0, rightHits: 0 };
+
+            document.getElementById('screen-menu').classList.add('hidden');
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+
+            setupGrid();
+            updateHUD();
+
+            timers.game = setInterval(gameTimerLoop, 100);
+            scheduleNextSpawn();
+        }
+
+        function setupGrid() {
+            const grid = document.getElementById('grid-container');
+            grid.innerHTML = '';
+
+            const config = AGE_CONFIG[state.group];
+            grid.className = `mole-grid ${config.gridClass}`;
+
+            HOLES_DEF.forEach((cfg) => {
+                // Check if this hole should be displayed for current group
+                if (config.holeIndices.includes(cfg.id)) {
+                    const hole = document.createElement('div');
+                    hole.className = 'hole-container';
+                    hole.id = `hole-${cfg.id}`;
+                    hole.onmousedown = () => handleInput(cfg.btn);
+                    hole.ontouchstart = (e) => { e.preventDefault(); handleInput(cfg.btn); };
+
+                    hole.innerHTML = `
+                        <div class="hole-fill fill-${cfg.color}"></div>
+                        <div class="mole-character" id="mole-${cfg.id}"></div>
+                        <div class="hit-effect" id="effect-${cfg.id}"></div>
+                    `;
+                    grid.appendChild(hole);
+                }
+            });
+        }
+
+        function gameTimerLoop() {
+            state.timeLeft -= 0.1;
+            if (state.timeLeft <= 0) {
+                state.timeLeft = 0;
+                endGame();
+            }
+            updateHUD();
+        }
+
+        function scheduleNextSpawn() {
+            if (!state.isPlaying) return;
+            const speedData = AGE_CONFIG[state.group].speeds[state.level - 1];
+            timers.spawn = setTimeout(spawnMole, speedData.wait);
+        }
+
+        function spawnMole() {
+            if (!state.isPlaying) return;
+
+            const speedData = AGE_CONFIG[state.group].speeds[state.level - 1];
+            const activeIndices = AGE_CONFIG[state.group].holeIndices;
+
+            // Filter holes not currently active
+            const available = activeIndices.filter(id => !state.activeMoles.find(m => m.id === id));
+
+            if (available.length > 0) {
+                const pickId = available[Math.floor(Math.random() * available.length)];
+                const moleDef = HOLES_DEF[pickId];
+
+                const moleObj = {
+                    id: pickId,
+                    btn: moleDef.btn,
+                    spawnTime: performance.now(),
+                    timer: null,
+                    side: moleDef.side
+                };
+
+                state.session.totalSpawns++;
+                if (moleDef.side === 'L') state.session.leftSpawns++;
+                else state.session.rightSpawns++;
+
+                state.activeMoles.push(moleObj);
+
+                const moleEl = document.getElementById(`mole-${pickId}`);
+                moleEl.classList.remove('whacked');
+                moleEl.classList.add('active');
+                playSound('pop');
+
+                moleObj.timer = setTimeout(() => {
+                    state.session.omission++;
+                    removeMole(pickId);
+                }, speedData.show);
+            }
+
+            scheduleNextSpawn();
+        }
+
+        function removeMole(id) {
+            const idx = state.activeMoles.findIndex(m => m.id === id);
+            if (idx > -1) {
+                clearTimeout(state.activeMoles[idx].timer);
+                state.activeMoles.splice(idx, 1);
+                const el = document.getElementById(`mole-${id}`);
+                if (el) el.classList.remove('active', 'whacked');
+            }
+        }
+
+        function handleInput(btnId) {
+            if (!state.isPlaying) return;
+
+            const target = state.activeMoles.find(m => m.btn === btnId);
+
+            if (target) {
+                // HIT
+                clearTimeout(target.timer);
+                state.activeMoles.splice(state.activeMoles.indexOf(target), 1);
+
+                const rt = performance.now() - target.spawnTime;
+                state.session.success++;
+                state.session.rtSum += rt;
+                state.score += Math.max(10, Math.floor(100 - rt / 20));
+
+                if (target.side === 'L') state.session.leftHits++;
+                else state.session.rightHits++;
+
+                const moleEl = document.getElementById(`mole-${target.id}`);
+                const fxEl = document.getElementById(`effect-${target.id}`);
+
+                moleEl.classList.add('whacked');
+                fxEl.classList.add('boom');
+                setTimeout(() => fxEl.classList.remove('boom'), 300);
+                setTimeout(() => moleEl.classList.remove('active', 'whacked'), 150);
+
+                playSound('hit');
+
+            } else {
+                // COMMISSION ERROR (Valid button but no mole)
+                const activeIndices = AGE_CONFIG[state.group].holeIndices;
+                // Check if button corresponds to a visible hole
+                const targetHole = HOLES_DEF.find(h => h.btn === btnId);
+
+                if (targetHole && activeIndices.includes(targetHole.id)) {
+                    state.session.commission++;
+                    state.score = Math.max(0, state.score - 5);
+                    playSound('miss');
+
+                    const holeEl = document.getElementById(`hole-${targetHole.id}`);
+                    if (holeEl) {
+                        holeEl.style.transform = "scale(0.95)";
+                        setTimeout(() => holeEl.style.transform = "scale(1)", 100);
+                    }
+                }
+            }
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('display-level').innerText = state.level;
+            document.getElementById('display-score').innerText = state.score;
+            document.getElementById('timer-text').innerText = Math.ceil(state.timeLeft) + "s";
+            document.getElementById('timer-bar').style.width = (state.timeLeft / 60 * 100) + "%";
+        }
+
+        function stopGame() {
+            state.isPlaying = false;
+            clearInterval(timers.game);
+            clearTimeout(timers.spawn);
+            state.activeMoles.forEach(m => clearTimeout(m.timer));
+            goHome();
+        }
+
+        function endGame() {
+            state.isPlaying = false;
+            clearInterval(timers.game);
+            clearTimeout(timers.spawn);
+            state.activeMoles.forEach(m => clearTimeout(m.timer));
+
+            // [NEW] Supabase 기록 저장
+            const gameDuration = state.gameStartTime ? Math.round((performance.now() - state.gameStartTime) / 1000) : 60;
+            const s = state.session;
+            const avgRT = s.success > 0 ? Math.round(s.rtSum / s.success) : 0;
+
+            PlayLabCore.History.saveGameHistory({
+                gameId: '01-002',
+                gameName: '두더지 잡기 (Mole Whack)',
+                group: state.group,
+                level: state.level,
+                score: state.score,
+                duration: gameDuration,
+                metrics: {
+                    totalSpawns: s.totalSpawns,
+                    success: s.success,
+                    omission: s.omission,
+                    commission: s.commission,
+                    avgRT: avgRT,
+                    leftHits: s.leftHits,
+                    leftSpawns: s.leftSpawns,
+                    rightHits: s.rightHits,
+                    rightSpawns: s.rightSpawns
+                }
+            }).then(result => {
+                if (result.success) {
+                    console.log('✅ 게임 기록 저장 완료');
+                }
+            }).catch(err => {
+                console.warn('게임 기록 저장 실패:', err);
+            });
+
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-result').classList.remove('hidden');
+            analyzeResults();
+        }
+
+        let radarChartInstance = null;
+
+        function analyzeResults() {
+            const s = state.session;
+            const avgRT = s.success > 0 ? Math.round(s.rtSum / s.success) : 0;
+            const accuracy = s.totalSpawns > 0 ? ((s.success / s.totalSpawns) * 100).toFixed(1) : 0;
+            const omissionRate = s.totalSpawns > 0 ? ((s.omission / s.totalSpawns) * 100).toFixed(1) : 0;
+
+            // 좌우 편향 계산
+            const leftRate = s.leftSpawns > 0 ? ((s.leftHits / s.leftSpawns) * 100).toFixed(1) : 0;
+            const rightRate = s.rightSpawns > 0 ? ((s.rightHits / s.rightSpawns) * 100).toFixed(1) : 0;
+            const biasDiff = Math.abs(leftRate - rightRate);
+            const biasText = biasDiff > 20 ? (leftRate > rightRate ? "좌측 편향" : "우측 편향") : "균형";
+
+            // === 1. 쉬운 요약 데이터 생성 ===
+            let grade = "poor";
+            let icon = "sentiment_dissatisfied";
+            let title = "조금 더 연습하면 좋겠어요!";
+            let desc = "다음번에는 더 잘할 수 있을 거예요.";
+            let advice = "포기하지 말고 계속 도전해보세요!";
+
+            if (state.score >= 800) {
+                grade = "excellent";
+                icon = "emoji_events";
+                title = "참 잘했어요!";
+                desc = `점수 ${state.score}점! 정말 훌륭한 집중력을 보여줬어요.`;
+                advice = "이 실력을 유지하려면 매일 10분씩 연습하세요!";
+            } else if (state.score >= 500) {
+                grade = "good";
+                icon = "thumb_up";
+                title = "잘했어요!";
+                desc = `점수 ${state.score}점, 좋은 성과를 보였습니다.`;
+                advice = "조금만 더 집중하면 더 높은 점수를 받을 수 있어요!";
+            } else if (state.score >= 300) {
+                grade = "fair";
+                icon = "sentiment_neutral";
+                title = "괜찮아요!";
+                desc = "아직 연습이 더 필요해요.";
+                advice = "매일 조금씩 연습하면 빠르게 발전할 거예요!";
+            }
+
+            document.getElementById('easy-icon').innerText = icon;
+            document.getElementById('easy-title').innerText = title;
+            document.getElementById('easy-desc').innerText = desc;
+            document.getElementById('easy-score').innerText = state.score;
+            document.getElementById('easy-acc').innerText = accuracy + '%';
+            document.getElementById('easy-advice').innerText = advice;
+
+            // === 2. 전문 분석 데이터 생성 ===
+            document.getElementById('report-age-group').innerText = state.group.split('_')[2] || 'TODDLER';
+            document.getElementById('report-total-score').innerText = state.score;
+            document.getElementById('report-risk-label').innerText = grade.toUpperCase();
+            document.getElementById('score-bar').style.width = Math.min(100, (state.score / 1000) * 100) + '%';
+
+            document.getElementById('val-rt').innerText = avgRT + 'ms';
+            document.getElementById('val-acc').innerText = accuracy + '%';
+            document.getElementById('val-omission').innerText = omissionRate + '%';
+            document.getElementById('val-bias').innerText = biasText;
+
+            // === 3. Radar Chart 데이터 (6축) ===
+            const chartData = {
+                speed: Math.min(100, Math.max(0, 100 - (avgRT / 10))),  // RT가 낮을수록 높은 점수
+                accuracy: parseFloat(accuracy),
+                omissionControl: Math.max(0, 100 - parseFloat(omissionRate)),  // 누락이 적을수록 높은 점수
+                commissionControl: Math.max(0, 100 - (s.commission / s.totalSpawns) * 100),  // 충동 오류가 적을수록
+                vigilance: Math.min(100, (s.success / (s.totalSpawns * 0.8)) * 100),  // 성공률 기반
+                spatialBalance: Math.max(0, 100 - biasDiff)  // 편향이 적을수록
+            };
+
+            renderChart(chartData);
+
+            // === 4. 전문 소견 생성 ===
+            let feedback = [];
+            feedback.push(`총 ${s.totalSpawns}회 자극에 대해 ${s.success}회 성공(${accuracy}%)하였습니다.`);
+
+            if (avgRT < 400) {
+                feedback.push("반응 속도가 매우 빠릅니다.");
+            } else if (avgRT > 800) {
+                feedback.push("반응 속도가 다소 느립니다. 주의력 훈련이 권장됩니다.");
+            }
+
+            if (omissionRate > 30) {
+                feedback.push("누락 오류가 높게 나타났습니다. 주의 집중력 강화 훈련이 필요합니다.");
+            }
+
+            if (s.commission > s.totalSpawns * 0.1) {
+                feedback.push("충동 오류가 다소 관찰되었습니다. 억제 통제 훈련을 권장합니다.");
+            }
+
+            if (biasDiff > 20) {
+                feedback.push(`시각 탐색 편향(${biasText})이 관찰되었습니다. 편측 주의 평가가 권장됩니다.`);
+            } else {
+                feedback.push("좌우 균형 잡힌 시각 탐색 능력을 보였습니다.");
+            }
+
+            if (feedback.length === 0) {
+                feedback.push("전반적으로 균형 잡힌 수행 능력을 보였습니다.");
+            }
+
+            document.getElementById('report-feedback-text').innerHTML = `<p>${feedback.join('</p><p>')}</p>`;
+
+            // === 5. 메트릭 설명 생성 ===
+            const metricsList = [
+                { name: "처리 속도", value: chartData.speed, desc: "자극에 대한 반응 속도" },
+                { name: "정확도", value: chartData.accuracy, desc: "올바른 반응 비율" },
+                { name: "누락 통제", value: chartData.omissionControl, desc: "주의력 유지 능력" },
+                { name: "충동 통제", value: chartData.commissionControl, desc: "억제 능력" },
+                { name: "경계 유지", value: chartData.vigilance, desc: "지속적 주의력" },
+                { name: "공간 균형", value: chartData.spatialBalance, desc: "좌우 편향 없음" }
+            ];
+
+            let descriptionsHTML = '';
+            metricsList.forEach(metric => {
+                const percentage = metric.value.toFixed(0);
+                let colorClass = 'text-emerald-600';
+                if (metric.value < 50) colorClass = 'text-rose-500';
+                else if (metric.value < 70) colorClass = 'text-amber-500';
+
+                descriptionsHTML += `
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="font-medium text-slate-600">${metric.name}</span>
+                        <span class="font-bold ${colorClass}">${percentage}%</span>
+                    </div>
+                `;
+            });
+            document.getElementById('metric-descriptions').innerHTML = descriptionsHTML;
+
+            // === 6. 기본으로 쉬운 요약 표시 ===
+            toggleReportMode('EASY');
+        }
+
+        function toggleReportMode(mode) {
+            const easyTab = document.getElementById('tab-easy');
+            const clinicalTab = document.getElementById('tab-clinical');
+            const easyView = document.getElementById('report-easy');
+            const clinicalView = document.getElementById('report-clinical');
+
+            if (mode === 'EASY') {
+                easyTab.classList.add('active');
+                clinicalTab.classList.remove('active');
+                easyView.classList.remove('hidden');
+                clinicalView.classList.add('hidden');
+            } else {
+                clinicalTab.classList.add('active');
+                easyTab.classList.remove('active');
+                clinicalView.classList.remove('hidden');
+                easyView.classList.add('hidden');
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (radarChartInstance) radarChartInstance.destroy();
+
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['처리 속도', '정확도', '누락 통제', '충동 통제', '경계 유지', '공간 균형'],
+                    datasets: [{
+                        label: '인지 성능 (0-100)',
+                        data: [
+                            data.speed || 0,
+                            data.accuracy || 0,
+                            data.omissionControl || 0,
+                            data.commissionControl || 0,
+                            data.vigilance || 0,
+                            data.spatialBalance || 0
+                        ],
+                        fill: true,
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderColor: 'rgb(99, 102, 241)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgb(99, 102, 241)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20,
+                                font: { size: 10 },
+                                color: '#94a3b8',
+                                backdropColor: 'transparent'
+                            },
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: { size: 11, weight: 'bold' },
+                                color: '#475569'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function goHome() {
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-menu').classList.remove('hidden');
+        }
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+            if (type === 'pop') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            } else if (type === 'hit') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+            } else if (type === 'miss') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+            }
+        }
+
+        function setupGamepad() {
+            window.addEventListener("gamepadconnected", (e) => { state.gamepadIndex = e.gamepad.index; });
+            requestAnimationFrame(pollGamepad);
+        }
+
+        let lastBtnState = {};
+        function pollGamepad() {
+            if (state.gamepadIndex !== null) {
+                const gp = navigator.getGamepads()[state.gamepadIndex];
+                if (gp) {
+                    for (let i = 0; i < 8; i++) {
+                        if (gp.buttons[i] && gp.buttons[i].pressed) {
+                            if (!lastBtnState[i]) handleInput(i);
+                            lastBtnState[i] = true;
+                        } else {
+                            lastBtnState[i] = false;
+                        }
+                    }
+                }
+            }
+            requestAnimationFrame(pollGamepad);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

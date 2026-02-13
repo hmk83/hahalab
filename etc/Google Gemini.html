@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAHA LAB - Administrator Console (Supabase Connected)</title>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel (to compile JSX in browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons (Latest Version for stability) -->
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Tailwind Config for Animations -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'sans-serif'],
+                    },
+                    keyframes: {
+                        'slide-down': {
+                            '0%': { transform: 'translateY(-20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        'slide-up': {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        'fade-in': {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        }
+                    },
+                    animation: {
+                        'slide-down': 'slide-down 0.3s ease-out',
+                        'slide-up': 'slide-up 0.3s ease-out',
+                        'fade-in': 'fade-in 0.5s ease-out',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- External CSS -->
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // [SUPABASE CONFIGURATION]
+        const SUPABASE_URL = 'https://gxungzlecmibgvykoiib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_hzQriBXTJeAwATA2NjnV7A_Tr9E1hfE'; // Provided Anon Key
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // [UTILITIES]
+        const toCamel = (s) => s.replace(/([-_][a-z])/ig, ($1) => $1.toUpperCase().replace('-', '').replace('_', ''));
+        const toSnake = (s) => s.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+
+        const keysToCamel = (o) => {
+            if (o === Object(o) && !Array.isArray(o) && typeof o !== 'function') {
+                const n = {};
+                Object.keys(o).forEach((k) => { n[toCamel(k)] = keysToCamel(o[k]); });
+                return n;
+            } else if (Array.isArray(o)) {
+                return o.map((i) => keysToCamel(i));
+            }
+            return o;
+        };
+
+        const keysToSnake = (o) => {
+            if (o === Object(o) && !Array.isArray(o) && typeof o !== 'function') {
+                const n = {};
+                Object.keys(o).forEach((k) => { n[toSnake(k)] = keysToSnake(o[k]); });
+                return n;
+            } else if (Array.isArray(o)) {
+                return o.map((i) => keysToSnake(i));
+            }
+            return o;
+        };
+
+        // React 호환성 유틸리티
+        const toReactAttributes = (attrs) => {
+            const reactAttrs = {};
+            for (const [key, value] of Object.entries(attrs)) {
+                const camelKey = key.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+                reactAttrs[camelKey] = value;
+            }
+            return reactAttrs;
+        };
+
+        // 아이콘 컴포넌트
+        const LucideIcon = ({ name, size = 24, color = "currentColor", className = "", ...props }) => {
+            const lucide = window.lucide;
+            if (!lucide || !lucide.icons) return <span className="text-xs text-red-500">?</span>;
+
+            const iconMapping = {
+                'Edit3': 'Edit', 'BarChart2': 'ChartBar', 'Trash2': 'Trash',
+                'PauseCircle': 'CirclePause', 'PlayCircle': 'CirclePlay', 'AlertCircle': 'CircleAlert',
+                'MoreVertical': 'EllipsisVertical', 'Grid': 'LayoutGrid',
+                'LayoutDashboard': 'LayoutDashboard', 'ScrollText': 'ScrollText',
+                'Ban': 'Ban', 'CheckCircle2': 'CheckCircle2', 'ChevronDown': 'ChevronDown', 'ChevronUp': 'ChevronUp'
+            };
+
+            let iconName = iconMapping[name] || name;
+            let iconData = lucide.icons[iconName];
+
+            if (!iconData) {
+                const lowerName = iconName.toLowerCase();
+                const foundKey = Object.keys(lucide.icons).find(key => key.toLowerCase() === lowerName);
+                if (foundKey) iconData = lucide.icons[foundKey];
+            }
+
+            if (!iconData) return <span className="text-xs text-red-500 font-bold">?</span>;
+
+            const [tag, defaultAttrs, children] = iconData;
+
+            return React.createElement(
+                tag,
+                {
+                    ...toReactAttributes(defaultAttrs),
+                    width: size,
+                    height: size,
+                    stroke: color,
+                    className: className,
+                    ...props
+                },
+                children.map(([childTag, childAttrs], index) =>
+                    React.createElement(childTag, { ...toReactAttributes(childAttrs), key: index })
+                )
+            );
+        };
+
+        const iconNames = [
+            "LayoutDashboard", "Users", "Bell", "Play", "Settings", "LogOut",
+            "Search", "Plus", "Trash2", "Edit3", "X", "Save", "CheckCircle",
+            "AlertCircle", "ChevronRight", "BarChart2", "Calendar", "FileText",
+            "Lock", "Eye", "EyeOff", "Mic", "Brain", "Ear", "MessageCircle",
+            "Smile", "Palette", "Grid", "Check", "ScrollText", "PauseCircle", "PlayCircle", "DollarSign",
+            "Ban", "CheckCircle2", "ChevronDown", "ChevronUp"
+        ];
+
+        const Icons = {};
+        iconNames.forEach(name => {
+            Icons[name] = (props) => <LucideIcon name={name} {...props} />;
+        });
+
+        const {
+            LayoutDashboard, Users, Bell, Play, Settings, LogOut,
+            Search, Plus, Trash2, Edit3, X, Save, CheckCircle,
+            AlertCircle, ChevronRight, BarChart2, Calendar, FileText,
+            Lock, Eye, EyeOff, Mic, Brain, Ear, MessageCircle,
+            Smile, Palette, Grid, Check, ScrollText, PauseCircle, PlayCircle, DollarSign,
+            Ban, CheckCircle2, ChevronDown, ChevronUp
+        } = Icons;
+
+        // [CONSTANTS]
+        const ACCESS_TOKEN = "SExfU0VDVVJFX3p4Y2FzZDEyMw==";
+        const verifyCredentials = (input) => {
+            if (!input) return false;
+            try { return btoa("HL_SECURE_" + input.trim()) === ACCESS_TOKEN; } catch (e) { return false; }
+        };
+
+        const uploadImageToSupabase = async (file) => {
+            try {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+                const filePath = `thumbnails/${fileName}`;
+                const { error } = await supabase.storage.from('images').upload(filePath, file);
+                if (error) throw error;
+                const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+                return publicUrl;
+            } catch (error) {
+                console.error("Upload Error:", error);
+                return null;
+            }
+        };
+
+        // [TOAST COMPONENT]
+        const ToastNotification = ({ message }) => (
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 text-white px-6 py-4 rounded-xl shadow-2xl animate-fade-in z-50 flex items-center gap-3 min-w-[300px]">
+                <div className="bg-[#FEE500] p-2 rounded-full text-black shrink-0">{Bell && <Bell size={18} />}</div>
+                <div><p className="font-bold text-sm">알림</p><p className="text-sm text-gray-300">{message}</p></div>
+            </div>
+        );
+
+        const PLAY_CATEGORIES = [
+            { id: 'think', title: '생각 플레이', sub: '인지학습', desc: '기억력, 주의력, 문제해결력을 향상시키는 인지 재활 훈련', icon: Brain },
+            { id: 'sound', title: '소리 플레이', sub: '음소학습', desc: '음소 인식 및 조음 능력 개선을 위한 청각·언어 훈련', icon: Mic },
+            { id: 'listen', title: '듣기 플레이', sub: '청각학습', desc: '청각적 주의력 집중과 말소리 변별력을 기르는 훈련', icon: Ear },
+            { id: 'see', title: '보기 플레이', sub: '시지각 학습', desc: '시각 정보 처리 속도와 정확성을 높이는 발달 훈련', icon: Eye },
+            { id: 'speak', title: '말하기 플레이', sub: '어휘/표현', desc: '어휘력 확장과 문장 구성 능력 증진을 돕는 프로그램', icon: MessageCircle },
+            { id: 'life', title: '생활 플레이', sub: '일상/사회', desc: '일상생활 동작 수행(ADL)과 사회적 상호작용 기술 습득', icon: Smile },
+            { id: 'art', title: '아트 플레이', sub: '미술', desc: '소근육 운동 조절 능력 향상과 심리적 정서 안정', icon: Palette }
+        ];
+
+        const MOCK_LOGS = [
+            { id: 101, teacher: '김은애', center: '강남 본점', type: '수업', action: '수업종료', details: '학생A (생각 플레이)', time: '2026-02-08 14:30:00' },
+            { id: 102, teacher: '김은애', center: '강남 본점', type: '수업', action: '수업시작', details: '학생A (생각 플레이)', time: '2026-02-08 14:00:00' },
+            { id: 103, teacher: '이준호', center: '서초점', type: '시스템', action: '로그인', details: 'Web 접속', time: '2026-02-08 13:45:12' },
+            { id: 104, teacher: '김은애', center: '강남 본점', type: '학생관리', action: '학생 추가', details: '신규 학생 등록 (박지성)', time: '2026-02-08 11:20:00' },
+            { id: 105, teacher: '이준호', center: '서초점', type: '상담', action: '상담시작', details: '학부모 전화 상담', time: '2026-02-08 10:00:00' },
+            { id: 106, teacher: '이준호', center: '서초점', type: '상담', action: '상담종료', details: '학부모 전화 상담', time: '2026-02-08 10:25:00' },
+            { id: 107, teacher: '김은애', center: '강남 본점', type: '시스템', action: '로그아웃', details: '-', time: '2026-02-07 18:05:00' },
+        ];
+
+        // [APP COMPONENT]
+        const App = () => {
+            // [SESSION LOGIC] LocalStorage Check
+            const [admin, setAdmin] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('haha_lab_admin_session');
+                    return saved ? JSON.parse(saved) : null;
+                } catch (e) { return null; }
+            });
+
+            const [view, setView] = useState(() => {
+                return localStorage.getItem('haha_lab_admin_session') ? 'admin' : 'intro';
+            });
+
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [toast, setToast] = useState(null);
+
+            const showToast = (msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            // Shared Data
+            const [plans, setPlans] = useState([
+                { id: 1, name: 'Basic Plan', limit: 10, desc: '일반 치료사' },
+                { id: 2, name: 'Pro Plan', limit: 50, desc: '전문 치료 센터' },
+                { id: 3, name: 'Enterprise', limit: 200, desc: '대형 병원 및 기관' }
+            ]);
+
+            const handleLogin = (adminData) => {
+                localStorage.setItem('haha_lab_admin_session', JSON.stringify(adminData));
+                setAdmin(adminData);
+                setView('admin');
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem('haha_lab_admin_session');
+                setAdmin(null);
+                setView('login');
+            };
+
+            if (view === 'intro') return <IntroView onFinish={() => setView('login')} />;
+            if (view === 'login') return <LoginView onLogin={() => handleLogin({ name: '관리자', role: 'admin' })} />;
+
+            return (
+                <div className="flex min-h-screen bg-[#0f172a]">
+                    <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
+                    <div className="flex-1 ml-64 bg-black min-h-screen relative">
+                        {activeTab === 'dashboard' && <DashboardModule />}
+                        {activeTab === 'teachers' && <TeachersModule plans={plans} showToast={showToast} />}
+                        {activeTab === 'notices' && <NoticesModule showToast={showToast} />}
+                        {activeTab === 'contents' && <ContentsModule showToast={showToast} />}
+                        {activeTab === 'logs' && <LogsModule />}
+                        {activeTab === 'settings' && <SettingsModule plans={plans} setPlans={setPlans} showToast={showToast} />}
+                    </div>
+                    {toast && <ToastNotification message={toast} />}
+                </div>
+            );
+        };
+
+        // [COMPONENTS & MODULES]
+
+        // 1. Sidebar (Fixed Left Navigation)
+        const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
+            const menuItems = [
+                { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
+                { id: 'teachers', label: '선생님 관리', icon: Users },
+                { id: 'contents', label: 'Play Lab', icon: Play },
+                { id: 'notices', label: '공지사항', icon: Bell },
+                { id: 'logs', label: '활동 로그', icon: ScrollText },
+                { id: 'settings', label: '설정', icon: Settings },
+            ];
+
+            return (
+                <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col h-screen fixed left-0 top-0 z-20">
+                    <div className="p-6">
+                        <h2 className="text-2xl font-black text-[#FEE500] tracking-tighter">HAHA LAB</h2>
+                        <p className="text-xs text-gray-500 mt-1 font-bold">ADMINISTRATOR</p>
+                    </div>
+                    <nav className="flex-1 px-4 space-y-2">
+                        {menuItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveTab(item.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm ${activeTab === item.id ? 'bg-[#FEE500] text-black shadow-lg shadow-yellow-500/20' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
+                                >
+                                    {Icon && <Icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />}
+                                    {item.label}
+                                </button>
+                            );
+                        })}
+                    </nav>
+                    <div className="p-4 border-t border-gray-800">
+                        <button onClick={onLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-xl transition font-bold text-sm">
+                            {LogOut && <LogOut size={20} />} 로그아웃
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // 2. Intro View
+        const IntroView = ({ onFinish }) => {
+            const [mounted, setMounted] = useState(false);
+            useEffect(() => {
+                setMounted(true);
+                const timer = setTimeout(onFinish, 2500);
+                return () => clearTimeout(timer);
+            }, [onFinish]);
+
+            return (
+                <div className="w-full h-screen bg-black flex flex-col items-center justify-center overflow-hidden relative">
+                    <div className={`z-10 text-center transition-all duration-1000 transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+                        <div className="flex items-center justify-center gap-3 mb-6">
+                            <div className="w-16 h-16 bg-[#FEE500] rounded-2xl flex items-center justify-center shadow-[0_0_30px_rgba(254,229,0,0.3)] animate-pulse">
+                                <span className="font-black text-3xl text-black">HL</span>
+                            </div>
+                        </div>
+                        <h1 className="text-5xl md:text-7xl font-black text-[#FEE500] mb-4 tracking-tighter">HAHA LAB</h1>
+                        <p className="text-gray-500 font-bold tracking-[0.3em] text-xs">ADMINISTRATOR CONSOLE</p>
+                    </div>
+                </div>
+            );
+        };
+
+        // 3. Login View
+        const LoginView = ({ onLogin }) => {
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState(false);
+            const [loading, setLoading] = useState(false);
+
+            const handleAuth = (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setTimeout(() => {
+                    if (verifyCredentials(password)) onLogin();
+                    else { setError(true); setPassword(''); }
+                    setLoading(false);
+                }, 600);
+            };
+
+            return (
+                <div className="w-full h-screen bg-black flex items-center justify-center p-4 relative">
+                    <div className="bg-gray-900 p-10 rounded-3xl shadow-2xl w-full max-w-sm text-center border border-gray-800 relative z-10 animate-slide-down">
+                        <h2 className="text-3xl font-black text-white mb-2">HAHA LAB</h2>
+                        <p className="text-xs text-gray-500 font-bold mb-8 tracking-widest">SYSTEM ACCESS REQUIRED</p>
+                        <form onSubmit={handleAuth} className="space-y-4">
+                            <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(false); }} className={`w-full bg-black border-2 rounded-xl px-4 py-4 text-center text-2xl font-bold tracking-[0.5em] text-white focus:outline-none transition-colors ${error ? 'border-red-500/50' : 'border-gray-800 focus:border-[#FEE500]'}`} placeholder="••••" maxLength={12} autoFocus />
+                            {error && <p className="text-red-500 text-xs font-bold animate-pulse">접근 권한이 없습니다.</p>}
+                            <button type="submit" disabled={loading} className="w-full bg-[#FEE500] hover:bg-yellow-400 text-black font-black py-4 rounded-xl transition-all disabled:opacity-50">{loading ? 'VERIFYING...' : '접속하기'}</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // 4. Dashboard Module (Full Stats)
+        const DashboardModule = () => {
+            const [stats, setStats] = useState({ teachers: 0, students: 0, contents: 0 });
+            useEffect(() => {
+                const loadStats = async () => {
+                    const { count: tCount } = await supabase.from('teachers').select('*', { count: 'exact' });
+                    const { count: sCount } = await supabase.from('clients').select('*', { count: 'exact' });
+                    const { count: cCount } = await supabase.from('play_contents').select('*', { count: 'exact' });
+                    setStats({ teachers: tCount || 0, students: sCount || 0, contents: cCount || 0 });
+                };
+                loadStats();
+            }, []);
+
+            return (
+                <div className="p-8 animate-fade-in">
+                    <h2 className="text-3xl font-bold text-white mb-8">대시보드</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-gray-900 border border-gray-800 p-6 rounded-2xl flex items-center gap-6 hover:border-gray-700 transition">
+                            <div className="p-4 bg-blue-500/10 text-blue-400 rounded-2xl">{Users && <Users size={32} />}</div>
+                            <div><p className="text-gray-400 font-bold text-sm">총 선생님</p><p className="text-4xl font-black text-white">{stats.teachers}<span className="text-lg text-gray-600 ml-1">명</span></p></div>
+                        </div>
+                        <div className="bg-gray-900 border border-gray-800 p-6 rounded-2xl flex items-center gap-6 hover:border-gray-700 transition">
+                            <div className="p-4 bg-green-500/10 text-green-400 rounded-2xl">{Users && <Users size={32} />}</div>
+                            <div><p className="text-gray-400 font-bold text-sm">총 내담자</p><p className="text-4xl font-black text-white">{stats.students}<span className="text-lg text-gray-600 ml-1">명</span></p></div>
+                        </div>
+                        <div className="bg-gray-900 border border-gray-800 p-6 rounded-2xl flex items-center gap-6 hover:border-gray-700 transition">
+                            <div className="p-4 bg-purple-500/10 text-purple-400 rounded-2xl">{Play && <Play size={32} />}</div>
+                            <div><p className="text-gray-400 font-bold text-sm">콘텐츠</p><p className="text-4xl font-black text-white">{stats.contents}<span className="text-lg text-gray-600 ml-1">개</span></p></div>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-white text-lg">최근 활동 로그</h3>
+                                <button className="text-xs text-gray-500 hover:text-white">전체보기</button>
+                            </div>
+                            <div className="space-y-3">
+                                {MOCK_LOGS.slice(0, 5).map(log => (
+                                    <div key={log.id} className="flex items-center justify-between text-sm border-b border-gray-800 pb-3 last:border-0">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`w-2 h-2 rounded-full ${log.type === '시스템' ? 'bg-gray-500' : log.type === '수업' ? 'bg-blue-500' : 'bg-green-500'}`}></span>
+                                            <span className="text-gray-300 font-bold">{log.teacher}</span>
+                                            <span className="text-gray-500">({log.center})</span>
+                                        </div>
+                                        <div className="text-gray-400">{log.action}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center items-center text-center">
+                            <div className="w-16 h-16 bg-[#FEE500]/10 text-[#FEE500] rounded-full flex items-center justify-center mb-4">{BarChart2 && <BarChart2 size={32} />}</div>
+                            <h3 className="text-xl font-bold text-white mb-2">통계 분석 준비중</h3>
+                            <p className="text-gray-500 text-sm">다음 업데이트에서 상세한 데이터 분석 기능을<br />사용하실 수 있습니다.</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 5. Teachers Module (Full List + Edit/Add)
+        const TeachersModule = ({ plans, showToast }) => {
+            const [teachers, setTeachers] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [isAdding, setIsAdding] = useState(false);
+            const [detailView, setDetailView] = useState(null);
+            const [isEditing, setIsEditing] = useState(false);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterPlan, setFilterPlan] = useState('All');
+            const [isPinModalOpen, setIsPinModalOpen] = useState(false); // PIN Change Modal
+
+            // [NEW] Plan Expiry Check Logic
+            const checkPlanExpiry = async (teacherList) => {
+                const now = new Date();
+                const updates = [];
+
+                const verifiedList = teacherList.map(t => {
+                    if (t.planType !== 'normal' && t.planExpiredAt && new Date(t.planExpiredAt) < now) {
+                        // Expired! Downgrade
+                        updates.push(t.id);
+                        return { ...t, planType: 'normal', plan: 'Basic Plan', planExpiredAt: null };
+                    }
+                    return t;
+                });
+
+                if (updates.length > 0) {
+                    await Promise.all(updates.map(id =>
+                        supabase.from('teachers').update({ plan_type: 'normal', plan: 'Basic Plan', plan_expired_at: null }).eq('id', id)
+                    ));
+                    showToast(`${updates.length}명의 선생님 요금제가 만료되어 일반 등급으로 전환되었습니다.`);
+                }
+                return verifiedList;
+            };
+
+            useEffect(() => {
+                const fetchTeachers = async () => {
+                    setLoading(true);
+                    const { data, error } = await supabase.from('teachers').select('*').order('created_at', { ascending: false });
+                    if (!error) {
+                        let formatted = keysToCamel(data).map(t => ({ ...t, playStats: { monthly: [0, 0, 0, 0, 0, 0] } }));
+                        // Run expiry check
+                        formatted = await checkPlanExpiry(formatted);
+                        setTeachers(formatted);
+                    }
+                    setLoading(false);
+                };
+                fetchTeachers();
+            }, []);
+
+            const [form, setForm] = useState({ center: '', name: '', gender: '남', age: '', contact: '', email: '', plan: 'Standard', plan_type: 'silver', status: 'normal', memo: '', teacherId: '', password: '', planExpiredAt: '' });
+
+            useEffect(() => {
+                if (detailView) {
+                    setForm({
+                        ...detailView,
+                        teacherId: detailView.teacherId || '',
+                        password: detailView.password || '', // Will be masked in UI
+                        plan_type: detailView.planType || 'normal',
+                        planExpiredAt: detailView.planExpiredAt ? new Date(detailView.planExpiredAt).toISOString().split('T')[0] : ''
+                    });
+                    setIsEditing(false);
+                }
+                else if (isAdding) {
+                    setForm({ center: '', name: '', gender: '남', age: '', contact: '', email: '', plan: 'Standard', plan_type: 'silver', status: 'normal', memo: '', teacherId: '', password: '', planExpiredAt: '' });
+                    setIsEditing(true);
+                }
+            }, [detailView, isAdding]);
+
+            const filteredTeachers = teachers.filter(t => {
+                const matchName = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.center.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchPlan = filterPlan === 'All' || (t.planType || 'normal') === filterPlan.toLowerCase();
+                return matchName && matchPlan;
+            });
+
+            const getPlanColor = (type) => {
+                switch (type?.toLowerCase()) {
+                    case 'gold': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+                    case 'silver': return 'bg-slate-400/20 text-slate-300 border-slate-400/50';
+                    case 'bronze': return 'bg-orange-700/20 text-orange-400 border-orange-700/50';
+                    default: return 'bg-slate-800 text-slate-500 border-slate-700'; // Normal/Basic
+                }
+            };
+
+            const handleSave = async (e) => {
+                e.preventDefault();
+                // If adding, validate password. If editing, password updates are handled via specific modal or logic.
+                if (isAdding) {
+                    if (!form.password || !/^[a-zA-Z0-9]{4,6}$/.test(form.password)) return showToast("비밀번호는 4~6자리의 숫자 또는 영문+숫자 조합이어야 합니다.");
+                }
+
+                const payload = {
+                    ...form,
+                    age: parseInt(form.age) || 0,
+                    // If editing, don't update password here unless we want to allow direct edit (Requirement says separate logic, but let's keep it robust)
+                    // We will exclude password from update payload if it's editing and empty, but form has it.
+                    // For now, simple update.
+                };
+
+                // Remove camelCase keys for DB insert if needed? keysToSnake util handles this or we map manually? 
+                // The current code seems to assume supabase client handles it or the state keys match DB columns mostly (except camel/snake).
+                // We previously used keysToSnake? No, the code above didn't use it for payload.
+                // Let's assume standard supabase insert/update needs exact column names.
+                // Re-mapping for safety:
+                const dbPayload = {
+                    center: form.center,
+                    name: form.name,
+                    gender: form.gender,
+                    age: parseInt(form.age) || 0,
+                    contact: form.contact,
+                    email: form.email,
+                    plan: form.plan,
+                    plan_type: form.plan_type,
+                    status: form.status,
+                    memo: form.memo,
+                    teacher_id: form.teacherId,
+                    password: form.password, // Be careful here
+                    plan_expired_at: form.planExpiredAt || null
+                };
+
+                if (isAdding) {
+                    const { data, error } = await supabase.from('teachers').insert([dbPayload]).select();
+                    if (!error) {
+                        setTeachers([keysToCamel(data[0]), ...teachers]);
+                        setIsAdding(false);
+                        showToast('선생님이 등록되었습니다.');
+                    } else showToast("저장 실패: " + error.message);
+                } else {
+                    const { error } = await supabase.from('teachers').update(dbPayload).eq('id', detailView.id);
+                    if (!error) {
+                        const updated = { ...form, ...keysToCamel(dbPayload) }; // mix to update local state
+                        setTeachers(teachers.map(t => t.id === detailView.id ? updated : t));
+                        setDetailView(updated);
+                        setIsEditing(false);
+                        showToast('정보가 수정되었습니다.');
+                    } else showToast("수정 실패: " + error.message);
+                }
+            };
+
+            // PIN Change Logic
+            const PinChangeModal = ({ onClose }) => {
+                const [pin1, setPin1] = useState('');
+                const [pin2, setPin2] = useState('');
+
+                const handleChange = async () => {
+                    if (!/^[a-zA-Z0-9]{4,6}$/.test(pin1)) return showToast("4~6자리의 영문/숫자여야 합니다.");
+                    if (pin1 !== pin2) return showToast("PIN 번호가 일치하지 않습니다.");
+
+                    const { error } = await supabase.from('teachers').update({ password: pin1 }).eq('id', detailView.id);
+                    if (!error) {
+                        showToast("PIN 번호가 변경되었습니다.");
+                        setForm(prev => ({ ...prev, password: pin1 }));
+                        onClose();
+                    } else {
+                        showToast("변경 실패: " + error.message);
+                    }
+                };
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
+                        <div className="bg-gray-900 border border-gray-700 p-6 rounded-2xl w-80" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-white font-bold mb-4">PIN 변경</h3>
+                            <input type="password" placeholder="새 PIN (4~6자리)" className="w-full bg-black border border-gray-700 text-white p-3 rounded-lg mb-2 text-center" value={pin1} onChange={e => setPin1(e.target.value)} autoFocus />
+                            <input type="password" placeholder="PIN 확인" className="w-full bg-black border border-gray-700 text-white p-3 rounded-lg mb-4 text-center" value={pin2} onChange={e => setPin2(e.target.value)} />
+                            <div className="flex gap-2">
+                                <button onClick={onClose} className="flex-1 py-3 text-gray-400 hover:text-white">취소</button>
+                                <button onClick={handleChange} className="flex-1 py-3 bg-[#FEE500] text-black font-bold rounded-lg hover:bg-yellow-400">변경</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const handleToggleStatus = async () => {
+                if (!detailView) return;
+                const newStatus = detailView.status === 'suspended' ? 'normal' : 'suspended';
+                const actionName = newStatus === 'normal' ? '재개' : '정지';
+
+                if (confirm(`정말로 이 선생님의 활동을 ${actionName}하시겠습니까?`)) {
+                    const { error } = await supabase.from('teachers').update({ status: newStatus }).eq('id', detailView.id);
+                    if (!error) {
+                        const updated = { ...detailView, status: newStatus };
+                        setTeachers(teachers.map(t => t.id === detailView.id ? updated : t));
+                        setDetailView(updated);
+                        setForm(p => ({ ...p, status: newStatus }));
+                        showToast(`선생님 상태가 ${actionName}되었습니다.`);
+                    } else {
+                        showToast(`상태 변경 실패: ${error.message}`);
+                    }
+                }
+            };
+
+            const handleDelete = async () => {
+                if (confirm('삭제하시겠습니까?')) {
+                    const { error } = await supabase.from('teachers').delete().eq('id', detailView.id);
+                    if (!error) { setTeachers(teachers.filter(t => t.id !== detailView.id)); setDetailView(null); }
+                }
+            };
+
+            const getPlanDetails = (planName) => plans.find(p => p.name === planName) || { limit: 0 };
+
+            return (
+                <div className="h-full flex flex-col md:flex-row animate-fade-in relative">
+                    {isPinModalOpen && <PinChangeModal onClose={() => setIsPinModalOpen(false)} />}
+                    <div className={`flex-1 flex flex-col h-full overflow-hidden ${detailView || isAdding ? 'hidden md:flex w-full md:w-1/2 lg:w-2/5 border-r border-gray-800' : 'w-full'}`}>
+                        <div className="p-6 border-b border-gray-800 flex flex-col gap-4 bg-black sticky top-0 z-10">
+                            <div className="flex justify-between items-center">
+                                <h2 className="font-bold text-white text-2xl">선생님 관리</h2>
+                                <button onClick={() => { setDetailView(null); setIsAdding(true); }} className="bg-[#FEE500] text-black px-4 py-2 rounded-xl text-sm font-bold hover:bg-yellow-400 flex items-center gap-2">{Plus && <Plus size={16} />} 등록</button>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="이름/센터 검색"
+                                        className="w-full bg-gray-900 border border-gray-800 text-white rounded-lg py-2 pl-8 pr-2 focus:outline-none focus:border-[#FEE500] text-sm"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    <div className="absolute left-2.5 top-2.5 text-gray-500">{Search && <Search size={14} />}</div>
+                                </div>
+                                <select
+                                    className="bg-gray-900 border border-gray-800 text-white rounded-lg px-2 py-2 focus:outline-none focus:border-[#FEE500] text-sm"
+                                    value={filterPlan}
+                                    onChange={(e) => setFilterPlan(e.target.value)}
+                                >
+                                    <option value="All">전체 등급</option>
+                                    <option value="gold">Gold</option>
+                                    <option value="silver">Silver</option>
+                                    <option value="bronze">Bronze</option>
+                                    <option value="normal">Normal</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {loading ? <div className="text-center text-gray-500 py-10">Loading...</div> : filteredTeachers.map(teacher => (
+                                <div key={teacher.id} onClick={() => { setIsAdding(false); setDetailView(teacher); }} className={`p-5 rounded-2xl border cursor-pointer transition-all ${detailView?.id === teacher.id ? 'bg-gray-900 border-[#FEE500]' : 'bg-black border-gray-800 hover:border-gray-700'} ${teacher.status === 'suspended' ? 'opacity-50 grayscale' : ''}`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div><span className={`px-2 py-0.5 rounded text-[10px] font-bold text-white mr-2 ${teacher.gender === '남' ? 'bg-blue-600' : 'bg-pink-600'}`}>{teacher.gender}</span><span className="font-bold text-lg text-white">{teacher.name}</span><span className="text-xs text-gray-500 ml-1">({teacher.center})</span></div>
+                                        <div className="flex gap-2">
+                                            {teacher.status === 'suspended' && <span className="text-xs font-bold px-2 py-1 rounded bg-red-900/50 text-red-500">정지됨</span>}
+                                            <span className={`text-[10px] font-black px-2 py-1 rounded border uppercase ${getPlanColor(teacher.planType)}`}>{teacher.planType || 'NORMAL'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4 text-xs text-gray-500 font-medium"><span>{teacher.contact}</span><span>•</span><span>{teacher.teacherId}</span></div>
+                                </div>
+                            ))}
+                            {filteredTeachers.length === 0 && !loading && <div className="text-center text-gray-500 py-10">검색 결과가 없습니다.</div>}
+                        </div>
+                    </div>
+                    {(isAdding || detailView) && (
+                        <div className="flex-1 h-full overflow-y-auto bg-black animate-slide-up md:animate-fade-in relative border-t md:border-t-0 border-gray-800">
+                            <div className="p-8 max-w-2xl mx-auto">
+                                <div className="flex justify-between items-start mb-8">
+                                    <h3 className="font-black text-2xl text-white">{isAdding ? '신규 등록' : (isEditing ? '정보 수정' : '상세 정보')}</h3>
+                                    {!isAdding && !isEditing && (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={handleToggleStatus}
+                                                className={`p-2 rounded-lg border text-sm font-bold transition flex items-center gap-1 ${detailView.status === 'suspended'
+                                                    ? 'border-green-900/50 text-green-500 hover:bg-green-900/20'
+                                                    : 'border-orange-900/50 text-orange-500 hover:bg-orange-900/20'
+                                                    }`}
+                                            >
+                                                {detailView.status === 'suspended' ? <><CheckCircle2 size={20} /> 재개</> : <><Ban size={20} /> 정지</>}
+                                            </button>
+                                            <button onClick={() => setIsEditing(true)} className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 transition">{Edit3 && <Edit3 size={20} />}</button>
+                                            <button onClick={handleDelete} className="p-2 rounded-lg border border-red-900/50 text-red-500 hover:bg-red-900/20 transition">{Trash2 && <Trash2 size={20} />}</button>
+                                        </div>
+                                    )}
+                                </div>
+                                <form onSubmit={handleSave} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1"><label className="text-xs font-bold text-gray-500">센터명</label><input disabled={!isEditing} required className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.center} onChange={e => setForm({ ...form, center: e.target.value })} /></div>
+                                        <div className="space-y-1"><label className="text-xs font-bold text-gray-500">이름</label><input disabled={!isEditing} required className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
+                                        <div className="space-y-1"><label className="text-xs font-bold text-gray-500">아이디</label><input disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.teacherId} onChange={e => setForm({ ...form, teacherId: e.target.value })} /></div>
+
+                                        {/* PIN Section */}
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-gray-500">비밀번호 (PIN)</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    disabled
+                                                    type="password"
+                                                    className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50"
+                                                    value={isAdding ? form.password : "********"}
+                                                    onChange={e => isAdding && setForm({ ...form, password: e.target.value })}
+                                                    placeholder={isAdding ? "4~6자리" : "********"}
+                                                />
+                                                {!isAdding && isEditing && (
+                                                    <button type="button" onClick={() => setIsPinModalOpen(true)} className="px-4 bg-gray-800 text-white rounded-xl text-xs font-bold hover:bg-gray-700">변경</button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1"><label className="text-xs font-bold text-gray-500">연락처</label><input disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} /></div>
+                                    </div>
+
+                                    {/* Plan Management Section */}
+                                    <div className="pt-4 border-t border-gray-800">
+                                        <h4 className="text-sm font-bold text-white mb-4">요금제 관리</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-gray-500">등급</label>
+                                                <select disabled={!isEditing} className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.plan_type} onChange={e => setForm({ ...form, plan_type: e.target.value })}>
+                                                    <option value="normal">Normal</option>
+                                                    <option value="bronze">Bronze</option>
+                                                    <option value="silver">Silver</option>
+                                                    <option value="gold">Gold</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-gray-500">만료일</label>
+                                                <input disabled={!isEditing} type="date" className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl p-3 focus:border-[#FEE500] outline-none disabled:opacity-50" value={form.planExpiredAt} onChange={e => setForm({ ...form, planExpiredAt: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {isEditing && <div className="flex gap-3 pt-4 border-t border-gray-800"><button type="button" onClick={() => { if (isAdding) setIsAdding(false); else { setForm(detailView); setIsEditing(false); } }} className="flex-1 py-4 rounded-xl font-bold text-gray-400 hover:bg-gray-800 transition">취소</button><button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-[#FEE500] text-black hover:bg-yellow-400 shadow-[0_0_15px_rgba(253,224,71,0.2)] transition">{isAdding ? '선생님 등록' : '수정사항 저장'}</button></div>}
+                                </form>
+                                {!isEditing && !isAdding && (
+                                    <div className="mt-8 pt-8 border-t border-gray-800 animate-fade-in">
+                                        <h3 className="font-bold text-xl mb-4 text-white flex items-center gap-2">{BarChart2 && <BarChart2 size={20} />} 활동 요약</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-gray-900 p-4 rounded-xl border border-gray-800"><span className="text-xs text-gray-500 block">등록 내담자</span><span className="text-2xl font-black text-white">{detailView.registeredClients} <span className="text-xs font-normal text-gray-500">/ {getPlanDetails(detailView.plan).limit}명</span></span></div>
+                                            <div className="bg-gray-900 p-4 rounded-xl border border-gray-800"><span className="text-xs text-gray-500 block">이번 달 활동</span><span className="text-2xl font-black text-[#FEE500]">{detailView.playStats.monthly.reduce((a, b) => a + b, 0)} <span className="text-xs font-normal text-gray-500">시간</span></span></div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // 6. Notices Module (List & Accordion, Full Width)
+        const NoticesModule = ({ showToast }) => {
+            const [notices, setNotices] = useState([]);
+            const [isWriting, setIsWriting] = useState(false);
+            const [form, setForm] = useState({ type: '일반', title: '', content: '' });
+            const [useHtml, setUseHtml] = useState(false);
+            const [expandedId, setExpandedId] = useState(null); // Accordion State
+
+            useEffect(() => {
+                const fetchNotices = async () => {
+                    const { data } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
+                    if (data) setNotices(keysToCamel(data));
+                };
+                fetchNotices();
+            }, []);
+
+            const handleSave = async () => {
+                const finalContent = useHtml ? form.content : form.content.replace(/\n/g, '<br/>');
+                const payload = { type: form.type, title: form.title, content: finalContent, date: new Date().toISOString().split('T')[0] };
+                const { data, error } = await supabase.from('notices').insert([payload]).select();
+                if (!error) {
+                    setNotices([keysToCamel(data[0]), ...notices]);
+                    setIsWriting(false);
+                    setForm({ type: '일반', title: '', content: '' });
+                    showToast('공지사항이 등록되었습니다.');
+                } else showToast('등록 실패: ' + error.message);
+            };
+
+            const toggleExpand = (id) => {
+                setExpandedId(expandedId === id ? null : id);
+            };
+
+            const getBadgeColor = (type) => {
+                switch (type) {
+                    case '업데이트': return 'bg-blue-900 text-blue-400';
+                    case '점검': return 'bg-red-900 text-red-400';
+                    case '이벤트': return 'bg-purple-900 text-purple-400';
+                    default: return 'bg-gray-800 text-gray-400';
+                }
+            };
+
+            return (
+                <div className="w-full h-full p-8 flex flex-col"> {/* max-w 제거 */}
+                    <div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-black text-white">공지사항</h2><button onClick={() => setIsWriting(!isWriting)} className="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-700">{isWriting ? '목록' : '글쓰기'}</button></div>
+                    {isWriting ? (
+                        <div className="bg-gray-900 p-6 rounded-2xl border border-gray-800 space-y-4 max-w-4xl mx-auto w-full"> {/* 글쓰기 폼은 중앙 정렬 유지 */}
+                            <div className="flex gap-4"><select className="bg-black border border-gray-700 text-white p-3 rounded-xl font-bold" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option>일반</option><option>업데이트</option><option>점검</option><option>이벤트</option></select><input className="flex-1 bg-black border border-gray-700 text-white p-3 rounded-xl font-bold" placeholder="제목" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></div>
+                            <div className="flex justify-end"><label className="flex items-center gap-2 cursor-pointer text-sm text-gray-400 font-bold"><input type="checkbox" checked={useHtml} onChange={e => setUseHtml(e.target.checked)} /> HTML 사용</label></div>
+                            <textarea className="w-full h-64 bg-black border border-gray-700 text-white p-4 rounded-xl resize-none font-mono" placeholder="내용" value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} />
+                            <button onClick={handleSave} className="w-full bg-[#FEE500] text-black py-4 rounded-xl font-bold">등록</button>
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-y-auto bg-gray-900 border border-gray-800 rounded-2xl">
+                            {/* 리스트 헤더 */}
+                            <div className="grid grid-cols-12 gap-4 p-4 border-b border-gray-800 bg-black text-xs text-gray-500 font-bold sticky top-0 z-10">
+                                <div className="col-span-1 text-center">유형</div>
+                                <div className="col-span-9">제목</div>
+                                <div className="col-span-2 text-center">날짜</div>
+                            </div>
+                            {/* 리스트 바디 */}
+                            <div className="divide-y divide-gray-800">
+                                {notices.map(n => (
+                                    <div key={n.id} className="group">
+                                        <div onClick={() => toggleExpand(n.id)} className={`grid grid-cols-12 gap-4 p-4 items-center cursor-pointer hover:bg-gray-800/50 transition ${expandedId === n.id ? 'bg-gray-800' : ''}`}>
+                                            <div className="col-span-1 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${getBadgeColor(n.type)}`}>{n.type}</span></div>
+                                            <div className="col-span-9 font-bold text-white flex items-center gap-2">
+                                                {n.title}
+                                                {expandedId === n.id ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500 opacity-0 group-hover:opacity-100 transition" />}
+                                            </div>
+                                            <div className="col-span-2 text-center text-xs text-gray-500">{n.date}</div>
+                                        </div>
+                                        {/* 아코디언 내용 */}
+                                        {expandedId === n.id && (
+                                            <div className="p-6 bg-black/50 text-sm text-gray-300 border-t border-gray-800 animate-slide-down">
+                                                <div dangerouslySetInnerHTML={{ __html: n.content }} className="prose prose-invert max-w-none" />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // 7. Contents Module (Play Lab - Fixed Image Height)
+        const ContentsModule = ({ showToast }) => {
+            const [activeCategory, setActiveCategory] = useState(null);
+            const [contents, setContents] = useState([]);
+            const [isFormOpen, setIsFormOpen] = useState(false);
+            const [editingId, setEditingId] = useState(null);
+            const [formData, setFormData] = useState({ catId: 'think', title: '', url: '', tags: '', thumbnail: null, isHidden: false });
+
+            useEffect(() => {
+                const fetchContents = async () => {
+                    const { data } = await supabase.from('play_contents').select('*').order('created_at', { ascending: false });
+                    if (data) setContents(keysToCamel(data));
+                };
+                fetchContents();
+            }, []);
+
+            const handleSave = async (e) => {
+                e.preventDefault();
+                const tags = formData.tags.split(',').map(t => t.trim()).filter(t => t);
+                const payload = { cat_id: formData.catId, title: formData.title, url: formData.url, tags, thumbnail: formData.thumbnail, is_hidden: formData.isHidden, views: formData.views || 0 };
+
+                if (editingId) {
+                    const { error } = await supabase.from('play_contents').update(payload).eq('id', editingId);
+                    if (!error) {
+                        setContents(contents.map(c => c.id === editingId ? { ...formData, id: editingId, tags } : c));
+                        showToast('콘텐츠가 수정되었습니다.');
+                    } else showToast('수정 실패: ' + error.message);
+                } else {
+                    const { data, error } = await supabase.from('play_contents').insert([payload]).select();
+                    if (!error) {
+                        setContents([keysToCamel(data[0]), ...contents]);
+                        showToast('콘텐츠가 등록되었습니다.');
+                    } else showToast('등록 실패: ' + error.message);
+                }
+                setIsFormOpen(false);
+            };
+
+            const handleUpload = async (e) => {
+                const url = await uploadImageToSupabase(e.target.files[0]);
+                if (url) {
+                    setFormData(p => ({ ...p, thumbnail: url }));
+                    showToast('이미지가 업로드되었습니다.');
+                } else {
+                    showToast('이미지 업로드에 실패했습니다.');
+                }
+            };
+
+            const handleDelete = async (id) => {
+                if (confirm('삭제하시겠습니까?')) {
+                    const { error } = await supabase.from('play_contents').delete().eq('id', id);
+                    if (!error) setContents(contents.filter(c => c.id !== id));
+                }
+            };
+
+            const filtered = contents.filter(c => !activeCategory || c.catId === activeCategory.id);
+
+            return (
+                <div className="flex h-full">
+                    <div className="w-72 bg-gray-900 border-r border-gray-800 p-6 overflow-y-auto">
+                        <h2 className="text-2xl font-black mb-6 text-white">PLAY LAB</h2>
+                        <div className="space-y-2">
+                            <button onClick={() => setActiveCategory(null)} className={`w-full text-left py-3 px-4 rounded-xl font-bold flex gap-3 text-sm transition ${!activeCategory ? 'bg-[#FEE500] text-black' : 'text-gray-400 hover:bg-gray-800'}`}>{Grid && <Grid size={18} />} 전체 보기</button>
+                            <div className="h-px bg-gray-800 my-2"></div>
+                            {PLAY_CATEGORIES.map(cat => (<button key={cat.id} onClick={() => setActiveCategory(cat)} className={`w-full text-left py-3 px-4 rounded-xl font-bold flex gap-3 text-sm transition ${activeCategory?.id === cat.id ? 'bg-gray-800 text-white ring-1 ring-[#FEE500]' : 'text-gray-500 hover:bg-gray-800'}`}>{cat.icon && <cat.icon size={18} />} {cat.title}</button>))}
+                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col bg-black">
+                        <div className="p-4 border-b border-gray-800 flex justify-end"><button onClick={() => { setIsFormOpen(true); setEditingId(null); setFormData({ catId: 'think', title: '', url: '', tags: '', thumbnail: null }); }} className="bg-[#FEE500] text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-yellow-400 flex items-center gap-2">{Plus && <Plus size={16} />} 등록</button></div>
+                        {isFormOpen && (
+                            <div className="p-6 bg-gray-900 border-b border-gray-800">
+                                <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 max-w-4xl mx-auto">
+                                    <select className="bg-black border border-gray-800 text-white p-2 rounded-lg" value={formData.catId} onChange={e => setFormData({ ...formData, catId: e.target.value })}>{PLAY_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
+                                    <input className="bg-black border border-gray-800 text-white p-2 rounded-lg" placeholder="제목" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                                    <input className="col-span-2 bg-black border border-gray-800 text-white p-2 rounded-lg" placeholder="URL" value={formData.url} onChange={e => setFormData({ ...formData, url: e.target.value })} />
+                                    <div className="col-span-2 flex gap-2 items-center"><input type="file" onChange={handleUpload} className="text-gray-400 text-sm" />{formData.thumbnail && <img src={formData.thumbnail} className="h-10 w-10 rounded border border-gray-800" />}</div>
+                                    <input className="col-span-2 bg-black border border-gray-800 text-white p-2 rounded-lg" placeholder="태그" value={formData.tags} onChange={e => setFormData({ ...formData, tags: e.target.value })} />
+                                    <div className="col-span-2 flex gap-2"><button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 bg-gray-800 text-white py-3 rounded-xl font-bold">취소</button><button type="submit" className="flex-1 bg-[#FEE500] text-black font-bold py-3 rounded-xl">저장</button></div>
+                                </form>
+                            </div>
+                        )}
+                        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {filtered.map(c => (
+                                <div key={c.id} className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden hover:border-[#FEE500] transition group relative flex flex-col h-fit">
+                                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                        <button onClick={() => { setEditingId(c.id); setFormData({ ...c, tags: Array.isArray(c.tags) ? c.tags.join(', ') : c.tags }); setIsFormOpen(true); }} className="p-2 bg-gray-800 rounded-full text-white hover:bg-[#FEE500] hover:text-black">{Edit3 && <Edit3 size={18} />}</button>
+                                        <button onClick={() => handleDelete(c.id)} className="p-2 bg-gray-800 rounded-full text-red-500 hover:bg-red-500 hover:text-white">{Trash2 && <Trash2 size={18} />}</button>
+                                    </div>
+                                    {/* 이미지 높이 고정 및 비율 강제 (세로 길어짐 방지) */}
+                                    <div className="w-full aspect-video bg-black relative">
+                                        {c.thumbnail ? <img src={c.thumbnail} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-800 font-black">NO IMG</div>}
+                                    </div>
+                                    <div className="p-4 flex-1">
+                                        <h4 className="font-bold text-white truncate mb-1">{c.title}</h4>
+                                        <div className="flex gap-1 flex-wrap">
+                                            {c.tags && (Array.isArray(c.tags) ? c.tags : c.tags.split(',')).slice(0, 2).map((tag, i) => (
+                                                <span key={i} className="text-[10px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">{tag}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 8. Logs Module (Full Width)
+        const LogsModule = () => {
+            return (
+                <div className="w-full h-full p-8 flex flex-col"> {/* max-w 제거 */}
+                    <h2 className="text-2xl font-black text-white mb-6">활동 로그</h2>
+                    <div className="flex-1 overflow-y-auto bg-gray-900 border border-gray-800 rounded-2xl">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-black text-gray-500 text-xs uppercase sticky top-0 z-10"><tr><th className="p-4 border-b border-gray-800">시간</th><th className="p-4 border-b border-gray-800">유형</th><th className="p-4 border-b border-gray-800">내용</th></tr></thead>
+                            <tbody className="text-sm">
+                                {MOCK_LOGS.map(log => (
+                                    <tr key={log.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                                        <td className="p-4 text-gray-400 font-mono text-xs whitespace-nowrap">{log.time}</td>
+                                        <td className="p-4 whitespace-nowrap"><span className="px-2 py-1 rounded text-[10px] font-bold border border-gray-700 bg-gray-800 text-gray-400">{log.type}</span></td>
+                                        <td className="p-4 text-gray-300 w-full">{log.action} - {log.details}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        // 9. Settings Module
+        const SettingsModule = ({ plans, setPlans, showToast }) => {
+            const [editingId, setEditingId] = useState(null);
+            const [limit, setLimit] = useState(0);
+            return (
+                <div className="max-w-4xl mx-auto h-full p-8">
+                    <h2 className="text-2xl font-black text-white mb-8">설정</h2>
+                    <div className="grid grid-cols-3 gap-6">
+                        {plans.map(p => (
+                            <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                                <h4 className="font-bold text-xl text-white mb-4">{p.name}</h4>
+                                <div className="flex items-center gap-2">
+                                    {editingId === p.id ? (
+                                        <div className="flex items-center gap-2 w-full"><input type="number" className="w-20 bg-black border border-[#FEE500] text-white p-1 rounded text-center" value={limit} onChange={e => setLimit(e.target.value)} /><button onClick={() => { setPlans(plans.map(plan => plan.id === p.id ? { ...plan, limit } : plan)); setEditingId(null); showToast('설정이 저장되었습니다.'); }} className="text-green-500">{Check && <Check />}</button></div>
+                                    ) : (
+                                        <div className="flex items-center justify-between w-full"><span className="text-2xl font-black text-[#FEE500]">{p.limit}명</span><button onClick={() => { setEditingId(p.id); setLimit(p.limit); }} className="text-gray-600 hover:text-white">{Edit3 && <Edit3 size={16} />}</button></div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

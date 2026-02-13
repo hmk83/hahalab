@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PlayLab: Color Hunter (Stroop)</title>
+    <script src="playlab-core.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    <style>
+        @font-face {
+            font-family: 'HappinessSansTitle';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2205@1.0/Happiness-Sans-Title.woff2') format('woff2');
+            font-weight: normal;
+            font-display: swap;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .font-title {
+            font-family: 'HappinessSansTitle', sans-serif;
+        }
+
+        .font-medical {
+            font-family: 'Noto Sans KR', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        /* Timer Bar */
+        .timer-container {
+            width: 100%;
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .timer-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #6366f1);
+            transition: width 0.1s linear;
+        }
+
+        /* Stimulus Card */
+        .stimulus-card {
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 2.2/1;
+            background: white;
+            border-radius: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.15);
+            border: 4px solid #e2e8f0;
+            margin-bottom: 32px;
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .stimulus-text {
+            font-size: 5rem;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Button Grid */
+        .input-grid {
+            display: grid;
+            gap: 16px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+        }
+
+        /* Grid Layouts by Count */
+        .grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+            aspect-ratio: 2/1;
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(3, 1fr);
+            aspect-ratio: 3/1;
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(2, 1fr);
+            aspect-ratio: 1/1;
+            max-width: 400px;
+        }
+
+        .grid-5,
+        .grid-6 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            aspect-ratio: 1.5/1;
+        }
+
+        /* Color Buttons */
+        .color-btn {
+            border-radius: 24px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15), 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transition: transform 0.1s, filter 0.1s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-btn:active,
+        .color-btn.pressed {
+            transform: translateY(6px);
+            box-shadow: none;
+            filter: brightness(0.9);
+        }
+
+        .color-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Colors */
+        .bg-red {
+            background-color: #FF0000;
+        }
+
+        .text-red {
+            color: #FF0000;
+        }
+
+        .bg-blue {
+            background-color: #0000FF;
+        }
+
+        .text-blue {
+            color: #0000FF;
+        }
+
+        .bg-yellow {
+            background-color: #FAE100;
+            /* [CHANGED] 카카오톡 노랑으로 변경 */
+            color: #92400e;
+        }
+
+        .text-yellow {
+            color: #FAE100;
+            /* [CHANGED] 카카오톡 노랑으로 변경 */
+        }
+
+        .bg-green {
+            background-color: #008000;
+        }
+
+        .text-green {
+            color: #008000;
+        }
+
+        .bg-orange {
+            background-color: #FFA500;
+        }
+
+        .text-orange {
+            color: #f97316;
+        }
+
+        .bg-purple {
+            background-color: #800080;
+        }
+
+        .text-purple {
+            color: #9333ea;
+        }
+
+        /* Feedback Overlay */
+        .feedback-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+        }
+
+        .feedback-icon {
+            font-size: 10rem;
+            font-weight: 900;
+            filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.2));
+        }
+
+        .animate-feedback {
+            animation: feedbackPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes feedbackPop {
+            0% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+
+            80% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1.1);
+            }
+        }
+
+        .menu-btn {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 0 #cbd5e1;
+        }
+
+        .menu-btn.active {
+            border-color: #4f46e5;
+            background-color: #eef2ff;
+            color: #4338ca;
+            box-shadow: 0 0 0 2px #4f46e5;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .pop-in {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        /* Device Icon Wrapper */
+        .device-icon-wrapper {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        .device-icon {
+            width: 16px;
+            height: 16px;
+            filter: brightness(0) invert(1);
+        }
+
+        .active-orange {
+            background-color: #14b8a6;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="w-full h-full relative bg-slate-50 flex flex-col items-center justify-center p-4">
+
+        <!-- FEEDBACK OVERLAY -->
+        <div id="feedback-layer" class="feedback-overlay">
+            <span id="feedback-icon" class="material-symbols-rounded feedback-icon">check_circle</span>
+        </div>
+
+        <!-- 1. MENU SCREEN -->
+        <div id="screen-menu" class="w-full max-w-4xl flex flex-col items-center">
+            <div class="text-center mb-8">
+                <span
+                    class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold tracking-wider mb-2">STROOP
+                    TEST (30s)</span>
+                <h1 class="text-5xl md:text-6xl font-title text-slate-800 mb-2">색깔 사냥꾼</h1>
+                <p class="text-slate-500 font-medical text-lg">글자가 아닌 <span
+                        class="text-indigo-600 font-bold">'색깔'</span>을 맞추세요!</p>
+            </div>
+
+            <div class="w-full bg-white rounded-3xl shadow-sm border border-slate-200 p-6 mb-8">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-rounded text-indigo-500">face</span>
+                    <h3 class="font-bold text-slate-700">대상 그룹 (Target Group)</h3>
+                </div>
+                <div class="grid grid-cols-5 gap-2 mb-6">
+                    <button class="menu-btn group-btn active" data-group="toddler">유아</button>
+                    <button class="menu-btn group-btn" data-group="child">초등</button>
+                    <button class="menu-btn group-btn" data-group="teen">청소년</button>
+                    <button class="menu-btn group-btn" data-group="adult">성인</button>
+                    <button class="menu-btn group-btn" data-group="senior">고령자</button>
+                </div>
+
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-rounded text-indigo-500">palette</span>
+                    <h3 class="font-bold text-slate-700">레벨 (Color Expansion)</h3>
+                </div>
+                <div class="grid grid-cols-3 md:grid-cols-6 gap-2" id="level-container">
+                    <!-- JS Generated -->
+                </div>
+            </div>
+
+            <!-- Supported Devices (No Gamepad) -->
+            <div class="w-full max-w-sm bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                <p class="text-xs text-slate-400 mb-2 font-bold">SUPPORTED INPUT DEVICES</p>
+                <div class="flex justify-center gap-6 text-slate-500">
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="device-icon-wrapper active-orange"><img src="../images/touch.svg" alt="Touch"
+                                class="device-icon" /></div>
+                        <span class="text-xs font-bold">Touch</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="device-icon-wrapper active-orange"><img src="../images/mouse.svg" alt="Mouse"
+                                class="device-icon" /></div>
+                        <span class="text-xs font-bold">Mouse</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. GAME SCREEN -->
+        <div id="screen-game" class="hidden w-full h-full flex flex-col items-center relative">
+            <!-- HUD -->
+            <div
+                class="w-full h-20 bg-white/90 backdrop-blur border-b border-slate-200 px-6 flex items-center justify-between shrink-0 mb-6 rounded-b-3xl shadow-sm z-10">
+                <div class="flex items-center gap-6">
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 tracking-wider">LEVEL</div>
+                        <div class="text-2xl font-black text-indigo-600 leading-none" id="display-level">1</div>
+                    </div>
+                    <div class="h-8 w-px bg-slate-200"></div>
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 tracking-wider">SCORE</div>
+                        <div class="text-2xl font-black text-slate-700 leading-none" id="display-score">0</div>
+                    </div>
+                </div>
+                <div class="flex-1 max-w-xs mx-8">
+                    <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                        <span>TIME LEFT</span>
+                        <span id="timer-text" class="text-indigo-600">30s</span>
+                    </div>
+                    <div class="timer-container">
+                        <div id="timer-bar" class="timer-bar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <button onclick="goToMenuConfirm('GAME')" class="p-2 text-rose-400 hover:bg-rose-50 rounded-full"><span
+                        class="material-symbols-rounded">logout</span></button>
+            </div>
+
+            <!-- MAIN CONTENT -->
+            <div class="flex-grow flex flex-col items-center justify-center w-full max-w-2xl px-4 pb-12">
+
+                <!-- STIMULUS -->
+                <div id="stimulus-card" class="stimulus-card">
+                    <span id="stimulus-text" class="stimulus-text text-blue">파랑</span>
+                </div>
+
+                <!-- INPUT GRID -->
+                <div id="input-grid" class="input-grid grid-2">
+                    <!-- Buttons generated by JS -->
+                </div>
+
+                <div
+                    class="mt-8 text-center text-slate-300 text-xs font-bold tracking-widest opacity-0 animate-[fadeIn_2s_delay-1s_forwards]">
+                    MATCH THE INK COLOR
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. RESULT SCREEN -->
+        <div id="screen-result" class="hidden w-full h-full relative overflow-y-auto bg-white">
+            <div
+                class="absolute top-0 w-full h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shadow-sm">
+                <div class="font-bold text-slate-700 text-lg">결과 리포트</div>
+                <button onclick="goHome()"
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-xl transition-colors flex items-center gap-1 px-3">
+                    <span class="material-symbols-rounded text-sm">home</span>
+                    <span class="text-sm font-bold">홈으로</span>
+                </button>
+            </div>
+
+            <div class="max-w-4xl mx-auto px-4 py-8 mt-16">
+                <!-- Tabs: 쉬운 요약 / 전문 분석 -->
+                <div class="flex bg-slate-100 p-1 rounded-2xl mb-6">
+                    <button onclick="toggleReportMode('EASY')" id="tab-easy" class="tab-btn active">쉬운 요약</button>
+                    <button onclick="toggleReportMode('CLINICAL')" id="tab-clinical" class="tab-btn">전문 분석</button>
+                </div>
+
+                <!-- 1. 쉬운 요약 화면 (Easy Mode) -->
+                <div id="report-easy" class="pop-in">
+                    <div class="bg-white rounded-3xl p-8 border-2 border-slate-100 shadow-xl text-center mb-6">
+                        <div class="inline-block p-4 rounded-full bg-indigo-50 mb-4">
+                            <span class="material-symbols-rounded text-5xl text-indigo-500"
+                                id="easy-icon">emoji_events</span>
+                        </div>
+                        <h2 class="text-3xl font-black text-slate-800 mb-2" id="easy-title">참 잘했어요!</h2>
+                        <p class="text-lg text-slate-500 mb-8 whitespace-pre-line" id="easy-desc">정말 빠르고 정확하게 문제를 해결했어요.
+                        </p>
+
+                        <div class="flex justify-center gap-4 mb-4">
+                            <div class="bg-slate-50 p-4 rounded-2xl w-full max-w-[150px]">
+                                <span class="text-xs font-bold text-slate-400 block mb-1">정답 수</span>
+                                <span class="text-3xl font-black text-indigo-600" id="easy-score">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl w-full max-w-[150px]">
+                                <span class="text-xs font-bold text-slate-400 block mb-1">정확도</span>
+                                <span class="text-3xl font-black text-rose-500" id="easy-acc">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-indigo-50 rounded-2xl p-6 text-center border border-indigo-100">
+                        <span class="text-indigo-900 font-bold text-lg">💡 닥터 플레이의 한마디</span>
+                        <p class="text-indigo-700 mt-2 font-medium" id="easy-advice">매일 10분씩 연습하면 뇌가 더 튼튼해져요!</p>
+                    </div>
+                </div>
+
+                <!-- 2. 전 분석 화면 (Clinical Mode) -->
+                <div id="report-clinical" class="hidden pop-in">
+                    <div class="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-6">
+                        <div>
+                            <h2 class="text-2xl font-black text-slate-900 font-title">Clinical Detail</h2>
+                            <p class="text-xs text-slate-500 font-medical mt-1">Stroop Test - Inhibitory Control
+                                Analysis</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold text-slate-400">PATIENT GROUP</p>
+                            <p class="text-base font-bold text-indigo-600" id="report-age-group">TODDLER</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Radar Chart -->
+                        <div
+                            class="bg-slate-50 rounded-2xl p-4 flex flex-col items-center justify-center border border-slate-200 shadow-inner relative">
+                            <canvas id="radarChart"></canvas>
+
+                            <!-- 지표 설명 섹션 -->
+                            <div id="metric-descriptions" class="mt-6 w-full text-left space-y-2">
+                                <!-- JavaScript로 동적으로 채워짐 -->
+                            </div>
+                        </div>
+
+                        <!-- Metrics Cards -->
+                        <div class="flex flex-col justify-between gap-4">
+                            <div class="bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs font-bold text-slate-400">STROOP SCORE</span>
+                                </div>
+                                <div class="flex items-end gap-2">
+                                    <span class="text-4xl font-black" id="report-total-score">0</span>
+                                    <span class="text-base font-medium mb-1" id="report-risk-label">-</span>
+                                </div>
+                                <div class="w-full bg-slate-700 h-1.5 rounded-full mt-4 overflow-hidden">
+                                    <div id="score-bar" class="h-full bg-gradient-to-r from-emerald-400 to-teal-500"
+                                        style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 h-full">
+                                <div class="metric-card"><span class="metric-label">정답 수</span><span
+                                        class="metric-value text-indigo-600" id="val-correct">0</span></div>
+                                <div class="metric-card"><span class="metric-label">정확도</span><span
+                                        class="metric-value text-rose-500" id="val-acc">0%</span></div>
+                                <div class="metric-card"><span class="metric-label">간섭 오류</span><span
+                                        class="metric-value text-amber-600" id="val-stroop">0</span></div>
+                                <div class="metric-card"><span class="metric-label">단순 오류</span><span
+                                        class="metric-value text-teal-600" id="val-miss">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 임상적 판단 및 전문 소견 -->
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 mb-8">
+                        <h3 class="text-base font-bold text-indigo-900 flex items-center gap-2 mb-3">
+                            <span class="material-symbols-rounded">neurology</span>
+                            임상적 판단 및 전문 소견 (Professional Clinical Assessment)
+                        </h3>
+                        <div class="font-medical text-slate-700 text-sm leading-relaxed space-y-2"
+                            id="report-feedback-text">
+                            분석 중...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center gap-4 mt-8 opacity-60">
+                    <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+                        * 본 결과는 의료법 상의 확정 진단이 아니며, 보조적 진단 자료(Auxiliary Diagnostic Data)로 활용되어야 합니다.<br>
+                        Phase 1/2 Clinical Validation in progress.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- EXIT CONFIRM MODAL -->
+    <div id="modal-confirm-home"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[110] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 text-center pop-in shadow-2xl">
+            <h3 class="text-xl font-bold text-slate-800 mb-2">훈련 중단</h3>
+            <p class="text-slate-500 mb-6">진행 상황이 저장되지 않습니다.</p>
+            <div class="flex gap-3">
+                <button onclick="closeHomeModal()"
+                    class="flex-1 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">계속하기</button>
+                <button onclick="confirmGoToMenu()"
+                    class="flex-1 py-3 rounded-xl font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors">나가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- STEP 1. DATA CONSTANTS ---
+
+        const COLORS = [
+            { id: 'red', label: '빨강', hex: '#FF0000', tw: 'bg-red text-red' },
+            { id: 'blue', label: '파랑', hex: '#0000FF', tw: 'bg-blue text-blue' },
+            { id: 'yellow', label: '노랑', hex: '#FAE100', tw: 'bg-yellow text-yellow' }, // [CHANGED] 카카오톡 노랑
+            { id: 'green', label: '초록', hex: '#008000', tw: 'bg-green text-green' },
+            { id: 'orange', label: '주황', hex: '#FFA500', tw: 'bg-orange text-orange' },
+            { id: 'purple', label: '보라', hex: '#800080', tw: 'bg-purple text-purple' }
+        ];
+
+        // Level Configuration
+        const LEVELS = [
+            { id: 1, count: 2, rate: 0.0, desc: '2색 (0%)' },   // Red, Blue
+            { id: 2, count: 3, rate: 0.2, desc: '3색 (20%)' },  // + Yellow
+            { id: 3, count: 4, rate: 0.4, desc: '4색 (40%)' },  // + Green
+            { id: 4, count: 5, rate: 0.6, desc: '5색 (60%)' },  // + Orange
+            { id: 5, count: 6, rate: 0.8, desc: '6색 (80%)' },  // + Purple
+            { id: 6, count: 6, rate: 1.0, desc: '6색 (100%)' }  // Full Interference
+        ];
+
+        // Group Layout Rules
+        const LAYOUT_RULES = {
+            'toddler': { fixedUntil: 4 },
+            'senior': { fixedUntil: 4 },
+            'child': { fixedUntil: 2 },
+            'adult': { fixedUntil: 2 },
+            'teen': { fixedUntil: 1 }
+        };
+
+        // Physical Button Mapping (Row-Major Order)
+        const HOLES_DEF = [
+            { id: 0, btn: 2, color: 'green', side: 'L' },
+            { id: 1, btn: 3, color: 'blue', side: 'L' },
+            { id: 2, btn: 4, color: 'white', side: 'R' },
+            { id: 3, btn: 6, color: 'indigo', side: 'R' },
+            { id: 4, btn: 0, color: 'red', side: 'L' },
+            { id: 5, btn: 1, color: 'yellow', side: 'L' },
+            { id: 6, btn: 5, color: 'orange', side: 'R' },
+            { id: 7, btn: 7, color: 'violet', side: 'R' }
+        ];
+
+        // --- STEP 2. STATE ---
+        let state = {
+            group: 'toddler',
+            level: 1,
+            timeLeft: 30,
+            isPlaying: false,
+            currentProblem: null,
+            gameStartTime: null, // [NEW] 게임 시작 시간 추적
+            session: { total: 0, correct: 0, stroopErr: 0, missErr: 0, rtSum: 0 }
+        };
+        let timers = { game: null, next: null }; // Changed 'delay' to 'next'
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // --- STEP 3. CORE LOGIC ---
+
+        function generateProblem(levelId, group) {
+            const config = LEVELS.find(l => l.id === levelId);
+            const activeColors = COLORS.slice(0, config.count);
+
+            const ink = activeColors[Math.floor(Math.random() * activeColors.length)];
+            let text = ink;
+
+            if (Math.random() < config.rate && activeColors.length > 1) {
+                const distractors = activeColors.filter(c => c.id !== ink.id);
+                text = distractors[Math.floor(Math.random() * distractors.length)];
+            }
+
+            let buttons = [...activeColors];
+            const rule = LAYOUT_RULES[group];
+            const isFixed = levelId <= rule.fixedUntil;
+
+            if (!isFixed) {
+                buttons.sort(() => Math.random() - 0.5);
+            }
+
+            return { ink, text, buttons };
+        }
+
+        // --- UI & INTERACTION ---
+
+        function init() {
+            renderLevelButtons();
+            setupGroupButtons();
+        }
+
+        function setupGroupButtons() {
+            document.querySelectorAll('.group-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.group-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.group = btn.dataset.group;
+                };
+            });
+        }
+
+        function renderLevelButtons() {
+            const container = document.getElementById('level-container');
+            container.innerHTML = '';
+            LEVELS.forEach(lv => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-slate-50 border border-slate-200 rounded-xl p-3 hover:bg-indigo-50 hover:border-indigo-200 transition-colors flex flex-col items-center justify-center';
+                btn.onclick = () => startGame(lv.id);
+                btn.innerHTML = `<span class="text-sm font-black text-slate-700">Lv.${lv.id}</span><span class="text-[10px] text-slate-400">${lv.desc}</span>`;
+                container.appendChild(btn);
+            });
+        }
+
+        function startGame(level) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            state.level = level;
+            state.score = 0;
+            state.timeLeft = 30; // 30s Fixed
+            state.isPlaying = true;
+            state.gameStartTime = performance.now(); // [NEW] 게임 시작 시간 기록
+            state.session = { total: 0, correct: 0, stroopErr: 0, missErr: 0, rtSum: 0 };
+
+            document.getElementById('screen-menu').classList.add('hidden');
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+
+            document.getElementById('display-level').innerText = level;
+            updateHUD();
+
+            timers.game = setInterval(gameLoop, 100);
+            nextProblem();
+        }
+
+        function nextProblem() {
+            if (!state.isPlaying) return;
+
+            const problem = generateProblem(state.level, state.group);
+            state.currentProblem = { ...problem, spawnTime: performance.now() };
+
+            const card = document.getElementById('stimulus-card');
+            const textEl = document.getElementById('stimulus-text');
+
+            card.style.transform = 'scale(0.95)';
+            setTimeout(() => card.style.transform = 'scale(1)', 50);
+
+            textEl.innerText = problem.text.label;
+
+            textEl.className = 'stimulus-text';
+            textEl.classList.add(problem.ink.tw.split(' ')[1]);
+
+            const grid = document.getElementById('input-grid');
+            grid.innerHTML = '';
+            grid.className = `input-grid grid-${problem.buttons.length}`;
+
+            problem.buttons.forEach(colorObj => {
+                const btn = document.createElement('button');
+                btn.className = `color-btn ${colorObj.tw.split(' ')[0]}`;
+                btn.innerHTML = `<span class="material-symbols-rounded text-4xl text-white opacity-90 drop-shadow-md">circle</span>`;
+                // Add touch support
+                btn.onmousedown = () => handleInput(colorObj.id);
+                btn.ontouchstart = (e) => { e.preventDefault(); handleInput(colorObj.id); };
+                grid.appendChild(btn);
+            });
+        }
+
+        function handleInput(selectedId) {
+            if (!state.isPlaying || timers.next) return; // Prevent double click while feedback shows
+
+            const p = state.currentProblem;
+            const rt = performance.now() - p.spawnTime;
+            state.session.total++;
+            state.session.rtSum += rt;
+
+            if (selectedId === p.ink.id) {
+                state.session.correct++;
+                showFeedback(true);
+                playSound('hit');
+            } else {
+                if (selectedId === p.text.id) state.session.stroopErr++;
+                else state.session.missErr++;
+                showFeedback(false);
+                playSound('miss');
+            }
+
+            updateHUD();
+            // Increased delay to 600ms so user can see feedback
+            timers.next = setTimeout(() => {
+                timers.next = null;
+                nextProblem();
+            }, 600);
+        }
+
+        function gameLoop() {
+            state.timeLeft -= 0.1;
+            if (state.timeLeft <= 0) {
+                state.timeLeft = 0;
+                endGame();
+            }
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('timer-text').innerText = Math.ceil(state.timeLeft) + "s";
+            document.getElementById('timer-bar').style.width = (state.timeLeft / 30 * 100) + "%";
+            document.getElementById('display-score').innerText = state.session.correct;
+        }
+
+        function showFeedback(isCorrect) {
+            const layer = document.getElementById('feedback-layer');
+            const icon = document.getElementById('feedback-icon');
+
+            layer.classList.remove('animate-feedback');
+            void layer.offsetWidth;
+
+            icon.innerText = isCorrect ? 'check_circle' : 'cancel';
+            icon.className = `material-symbols-rounded feedback-icon ${isCorrect ? 'text-green-500' : 'text-rose-500'}`;
+
+            layer.classList.add('animate-feedback');
+        }
+
+        // --- MODAL & EXIT LOGIC ---
+        function goToMenuConfirm(source) {
+            const modal = document.getElementById('modal-confirm-home');
+            modal.classList.remove('hidden');
+            // If checking from Result screen, we might want different text, but standard logic is fine.
+        }
+
+        function closeHomeModal() {
+            document.getElementById('modal-confirm-home').classList.add('hidden');
+        }
+
+        function confirmGoToMenu() {
+            state.isPlaying = false;
+            clearInterval(timers.game);
+            clearTimeout(timers.next);
+            timers.next = null;
+
+            document.getElementById('modal-confirm-home').classList.add('hidden');
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-menu').classList.remove('hidden');
+        }
+
+        function endGame() {
+            state.isPlaying = false;
+            clearInterval(timers.game);
+            clearTimeout(timers.next);
+            timers.next = null;
+
+            // [NEW] Supabase 기록 저장
+            const gameDuration = state.gameStartTime ? Math.round((performance.now() - state.gameStartTime) / 1000) : 30;
+            const s = state.session;
+            const avgRT = s.correct > 0 ? Math.round(s.rtSum / s.correct) : 0;
+            const rcs = Math.round((s.correct / 30) * 100) / 10;
+
+            PlayLabCore.History.saveGameHistory({
+                gameId: '01-003',
+                gameName: '색깔 사냥꾼 (Stroop Test)',
+                group: state.group,
+                level: state.level,
+                score: s.correct, // 정답 개수를 점수로 사용
+                duration: gameDuration,
+                metrics: {
+                    totalTrials: s.total,
+                    correct: s.correct,
+                    stroopErr: s.stroopErr,
+                    missErr: s.missErr,
+                    avgRT: avgRT,
+                    rcs: rcs
+                }
+            }).then(result => {
+                if (result.success) {
+                    console.log('✅ 게임 기록 저장 완료');
+                }
+            }).catch(err => {
+                console.warn('게임 기록 저장 실패:', err);
+            });
+
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-result').classList.remove('hidden');
+            analyzeResults();
+        }
+
+        let radarChartInstance = null;
+
+        function analyzeResults() {
+            const s = state.session;
+            const avgRT = s.correct > 0 ? Math.round(s.rtSum / s.correct) : 0;
+            const accuracy = s.total > 0 ? ((s.correct / s.total) * 100).toFixed(1) : 0;
+            const stroopRate = s.total > 0 ? ((s.stroopErr / s.total) * 100).toFixed(1) : 0;
+            const missRate = s.total > 0 ? ((s.missErr / s.total) * 100).toFixed(1) : 0;
+            const rcs = (s.correct / 30) * 10;  // 30초 기준으로 정규화된 점수
+
+            // === 1. 쉬운 요약 데이터 생성 ===
+            let grade = "poor";
+            let icon = "sentiment_dissatisfied";
+            let title = "조금 더 연습하면 좋겠어요!";
+            let desc = "다음번에는 더 잘할 수 있을 거예요.";
+            let advice = "포기하지 말고 계속 도전해보세요!";
+
+            if (s.correct >= 25) {
+                grade = "excellent";
+                icon = "emoji_events";
+                title = "참 잘했어요!";
+                desc = `${s.correct}개 정답! 정말 훌륭한 집중력과 억제력을 보여줬어요.`;
+                advice = "이 실력을 유지하려면 매일 10분씩 연습하세요!";
+            } else if (s.correct >= 18) {
+                grade = "good";
+                icon = "thumb_up";
+                title = "잘했어요!";
+                desc = `${s.correct}개 정답, 좋은 성과를 보였습니다.`;
+                advice = "조금만 더 집중하면 더 높은 점수를 받을 수 있어요!";
+            } else if (s.correct >= 12) {
+                grade = "fair";
+                icon = "sentiment_neutral";
+                title = "괜찮아요!";
+                desc = "아직 연습이 더 필요해요.";
+                advice = "매일 조금씩 연습하면 빠르게 발전할 거예요!";
+            }
+
+            document.getElementById('easy-icon').innerText = icon;
+            document.getElementById('easy-title').innerText = title;
+            document.getElementById('easy-desc').innerText = desc;
+            document.getElementById('easy-score').innerText = s.correct;
+            document.getElementById('easy-acc').innerText = accuracy + '%';
+            document.getElementById('easy-advice').innerText = advice;
+
+            // === 2. 전문 분석 데이터 생성 ===
+            document.getElementById('report-age-group').innerText = state.group.split('_')[2] || 'TODDLER';
+            document.getElementById('report-total-score').innerText = s.correct;
+            document.getElementById('report-risk-label').innerText = grade.toUpperCase();
+            document.getElementById('score-bar').style.width = Math.min(100, (s.correct / 30) * 100) + '%';
+
+            document.getElementById('val-correct').innerText = s.correct;
+            document.getElementById('val-acc').innerText = accuracy + '%';
+            document.getElementById('val-stroop').innerText = s.stroopErr;
+            document.getElementById('val-miss').innerText = s.missErr;
+
+            // === 3. Radar Chart 데이터 (6축) ===
+            const chartData = {
+                accuracy: parseFloat(accuracy),
+                speed: Math.min(100, Math.max(0, 100 - (avgRT / 15))),  // RT 기반 속도
+                inhibitionControl: Math.max(0, 100 - parseFloat(stroopRate)),  // 간섭 오류가 적을수록
+                selectiveAttention: Math.max(0, 100 - parseFloat(missRate)),  // 단순 오류가 적을수록
+                cognitiveFlexibility: Math.min(100, (s.correct / 30) * 100),  // RCS 기반
+                consistency: avgRT > 0 ? Math.min(100, (1000 / avgRT) * 50) : 0  // 일관성
+            };
+
+            renderChart(chartData);
+
+            // === 4. 전문 소견 생성 ===
+            let feedback = [];
+            feedback.push(`총 ${s.total}회 시행에서 ${s.correct}회 정답(${accuracy}%)을 획득하였습니다.`);
+
+            if (s.stroopErr > s.total * 0.2) {
+                feedback.push("간섭 오류(Stroop Effect)가 높게 나타났습니다. 억제 통제(Inhibitory Control) 훈련이 권장됩니다.");
+            } else if (s.stroopErr === 0) {
+                feedback.push("간섭 오류 없이 완벽한 억제 통제력을 보였습니다.");
+            }
+
+            if (s.missErr > s.total * 0.15) {
+                feedback.push("단순 오류가 다소 관찰되었습니다. 시각 탐색 및 선택적 주의력 훈련이 필요합니다.");
+            }
+
+            if (avgRT < 800) {
+                feedback.push("빠른 정보 처리 속도를 보였습니다.");
+            } else if (avgRT > 1500) {
+                feedback.push("정보 처리 속도가 다소 느립니다. 인지적 유연성 훈련을 권장합니다.");
+            }
+
+            if (s.correct >= 25) {
+                feedback.push("우수한 인지적 유연성과 억제 능력을 보였습니다.");
+            } else if (s.correct < 12) {
+                feedback.push("전반적인 주의력 및 억제 통제 훈련이 권장됩니다.");
+            }
+
+            if (feedback.length === 0) {
+                feedback.push("전반적으로 균형 잡힌 수행 능력을 보였습니다.");
+            }
+
+            document.getElementById('report-feedback-text').innerHTML = `<p>${feedback.join('</p><p>')}</p>`;
+
+            // === 5. 메트릭 설명 생성 ===
+            const metricsList = [
+                { name: "정확도", value: chartData.accuracy, desc: "올바른 반응 비율" },
+                { name: "처리 속도", value: chartData.speed, desc: "인지 반응 속도" },
+                { name: "억제 통제", value: chartData.inhibitionControl, desc: "간섭 저항 능력" },
+                { name: "선택적 주의", value: chartData.selectiveAttention, desc: "탐색 정확성" },
+                { name: "인지 유연성", value: chartData.cognitiveFlexibility, desc: "전환 능력" },
+                { name: "일관성", value: chartData.consistency, desc: "수행 안정성" }
+            ];
+
+            let descriptionsHTML = '';
+            metricsList.forEach(metric => {
+                const percentage = metric.value.toFixed(0);
+                let colorClass = 'text-emerald-600';
+                if (metric.value < 50) colorClass = 'text-rose-500';
+                else if (metric.value < 70) colorClass = 'text-amber-500';
+
+                descriptionsHTML += `
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="font-medium text-slate-600">${metric.name}</span>
+                        <span class="font-bold ${colorClass}">${percentage}%</span>
+                    </div>
+                `;
+            });
+            document.getElementById('metric-descriptions').innerHTML = descriptionsHTML;
+
+            // === 6. 기본으로 쉬운 요약 표시 ===
+            toggleReportMode('EASY');
+        }
+
+        function toggleReportMode(mode) {
+            const easyTab = document.getElementById('tab-easy');
+            const clinicalTab = document.getElementById('tab-clinical');
+            const easyView = document.getElementById('report-easy');
+            const clinicalView = document.getElementById('report-clinical');
+
+            if (mode === 'EASY') {
+                easyTab.classList.add('active');
+                clinicalTab.classList.remove('active');
+                easyView.classList.remove('hidden');
+                clinicalView.classList.add('hidden');
+            } else {
+                clinicalTab.classList.add('active');
+                easyTab.classList.remove('active');
+                clinicalView.classList.remove('hidden');
+                easyView.classList.add('hidden');
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (radarChartInstance) radarChartInstance.destroy();
+
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['정확도', '처리 속도', '억제 통제', '선택적 주의', '인지 유연성', '일관성'],
+                    datasets: [{
+                        label: '인지 성능 (0-100)',
+                        data: [
+                            data.accuracy || 0,
+                            data.speed || 0,
+                            data.inhibitionControl || 0,
+                            data.selectiveAttention || 0,
+                            data.cognitiveFlexibility || 0,
+                            data.consistency || 0
+                        ],
+                        fill: true,
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderColor: 'rgb(99, 102, 241)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgb(99, 102, 241)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20,
+                                font: { size: 10 },
+                                color: '#94a3b8',
+                                backdropColor: 'transparent'
+                            },
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: { size: 11, weight: 'bold' },
+                                color: '#475569'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function goHome() {
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-menu').classList.remove('hidden');
+        }
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'hit') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+            } else if (type === 'miss') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+                gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.1);
+            }
+            osc.start(now); osc.stop(now + 0.1);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

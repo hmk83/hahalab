@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마스터 프로토콜 v3.0 - 전량 복원본</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
+        .case-box { @apply bg-white border-l-4 border-indigo-500 p-4 shadow-sm mb-4 rounded-r-lg; }
+        .code-block { @apply bg-slate-900 text-indigo-300 p-6 rounded-lg font-mono text-xs overflow-x-auto my-4; }
+        .script-quote { @apply italic text-slate-600 bg-slate-50 p-4 border rounded-lg mt-2 block; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased p-4">
+    <div class="max-w-5xl mx-auto bg-white shadow-2xl rounded-2xl overflow-hidden my-8">
+        <div class="bg-indigo-900 text-white p-12">
+            <h1 class="text-4xl font-black mb-4 uppercase tracking-tighter">[전문가용 임상 리포트 기획서]</h1>
+            <h2 class="text-2xl font-light opacity-80 italic underline decoration-indigo-400">플레이랩 인지 재활 분석 및 정밀 피드백 시스템 (Master Protocol v3.0)</h2>
+        </div>
+
+        <div class="p-12 space-y-12">
+            <!-- 1. 개요 -->
+            <section>
+                <h3 class="text-2xl font-bold text-indigo-900 mb-4">1. 개요 (Project Overview & Clinical Rationale)</h3>
+                <p class="leading-relaxed">본 문서는 플레이랩(PlayLab)의 기능성 게임 데이터를 기반으로 사용자의 인지 기능을 정밀 진단하고 맞춤형 디지털 치료(DTx)를 처방하기 위한 최고위 수준의 임상 및 소프트웨어 아키텍처 명세서입니다. 기존의 단순 점수 산출을 넘어, 사용자의 연령(13개 생애주기), 초정밀 오류 패턴(속도형/정확형/보속증 등 20여 개 패턴), 종단적 추세(시계열 데이터)를 다차원적으로 조합합니다. 본 시스템의 궁극적인 목표는 전두엽 배외측 피질(DLPFC), 복내측 전전두피질(VMPFC), 해마(Hippocampus) 등 뇌 신경망의 활성화 수준을 정량화하고, 비전문가(보호자, 일반 튜터)도 전문 임상의 수준의 브리핑을 할 수 있도록 '데이터 기반 초정밀 상담 스크립트'를 자동 생성하는 것입니다.</p>
+            </section>
+
+            <!-- 2. 데이터 처리 -->
+            <section>
+                <h3 class="text-2xl font-bold text-indigo-900 mb-4">2. 데이터 처리 및 인지 지표 산출 로직</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-50 p-6 rounded-xl">
+                        <h4 class="font-bold text-indigo-700 mb-2">입력 데이터 임상 의미</h4>
+                        <ul class="text-sm space-y-2">
+                            <li><strong>reaction_times:</strong> 정보 처리 속도, 백질(White matter) 무결성</li>
+                            <li><strong>is_correct:</strong> 집행 기능, 선택적 주의력 및 작업 기억</li>
+                            <li><strong>distractor_hits:</strong> 억제 제어 실패 및 충동성</li>
+                            <li><strong>total_duration:</strong> 인지적 지구력, 주의 감쇠(Vigilance)</li>
+                        </ul>
+                    </div>
+                    <div class="bg-slate-50 p-6 rounded-xl">
+                        <h4 class="font-bold text-indigo-700 mb-2">알고리즘 가중치</h4>
+                        <p class="text-sm text-slate-600">반응속도 20%, 정확도 30%, 오류율 20%, 주의지속력 30%를 시스템화하여 정규화 및 Z-score 보정 적용.</p>
+                    </div>
+                </div>
+                <div class="code-block">
+<pre>function calculateClinicalScore(data) {
+  let speedNorm = normalizeInverse(data.avg_reaction_time_ms, clinicalMinRT, clinicalMaxRT);
+  let accuracyNorm = normalize(data.accuracy_rate, 0, 100);
+  let errorNorm = 100 - normalize(data.error_rate, 0, 100);
+  let persistenceNorm = normalize(data.attention_span_ratio, 0, 100);
+
+  let totalScore = (speedNorm * 0.20) + (accuracyNorm * 0.30) + 
+                   (errorNorm * 0.20) + (persistenceNorm * 0.30);
+  
+  return applyAgeNorms(totalScore, data.user_age);
+}</pre>
+                </div>
+            </section>
+
+            <!-- 3. 피드백 엔진 -->
+            <section>
+                <h3 class="text-2xl font-bold text-indigo-900 mb-4">3. 초정밀 다차원 피드백 엔진 (Hyper-Granular Feedback Engine)</h3>
+                <div class="space-y-6">
+                    <div class="case-box">
+                        <h5 class="font-bold text-indigo-800">98~100점 (완벽형 - 유동성 지능 극상)</h5>
+                        <span class="text-xs text-slate-500">[임상 의미] 정보 처리 속도와 정확성이 완벽한 균형을 이룸. PFC 활성도 최상위.</span>
+                        <p class="script-quote">"검사 결과, 반응 속도 평균 210ms, 오답률 0%로 동년배 상위 1% 이내의 완벽한 뇌 건강 상태를 증명하셨습니다. 최고 수준의 실행 기능을 유지하기 위해 고난도 멀티태스킹 훈련을 처방합니다."</p>
+                    </div>
+                    <div class="case-box border-amber-500">
+                        <h5 class="font-bold text-amber-800">95~97점 (초고속 편향형 - 미세 억제 실패)</h5>
+                        <span class="text-xs text-slate-500">[임상 의미] 정신운동 속도는 한계치이나 기저핵 운동 억제 타이밍이 0.1초 빗나감.</span>
+                        <p class="script-quote">"뇌의 회전이 아주 민첩합니다! 다만 빠른 속도 탓에 '충동성 오류'가 발견되었습니다. 0.5초 브레이크 연습을 하시면 완벽한 만점이 예상됩니다."</p>
+                    </div>
+                    <div class="case-box border-blue-500">
+                        <h5 class="font-bold text-blue-800">78~84점 (주의력 감쇠형 - Vigilance Decrement)</h5>
+                        <span class="text-xs text-slate-500">[임상 의미] 후반부 집중력 표준편차(SD) 급증. 각성 유지 실패.</span>
+                        <p class="script-quote">"초반 인지 효율은 우수하나 후반부 반응 시간이 2배 지연됩니다. 뇌의 인지적 체력이 떨어져 있으니 3분 단위로 짧게 훈련하세요."</p>
+                    </div>
+                    <div class="case-box border-red-500">
+                        <h5 class="font-bold text-red-800">60점 미만 (정신운동 지연 및 위험군)</h5>
+                        <span class="text-xs text-slate-500">[임상 의미] 자극 수용 후 운동 출력 경로 손상 의심. 일상생활 간섭 우려.</span>
+                        <p class="script-quote">"반응 속도가 동년배 평균보다 40% 이상 지연되었습니다. 뇌와 손의 연결고리를 다시 잇는 기초 감각 재활을 시작하겠습니다."</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. 뇌신경 처방 -->
+            <section>
+                <h3 class="text-2xl font-bold text-indigo-900 mb-6 flex items-center">
+                    <span class="bg-indigo-600 w-2 h-8 mr-4 block"></span>5. 뇌신경 영역별 게임 처방 매핑
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-6 border-2 border-slate-100 rounded-xl">
+                        <h5 class="font-bold mb-2">전두엽 [DLPFC] 작업 기억</h5>
+                        <p class="text-sm text-slate-600">결함: N-Back 오류, 계산 실패. 처방: 숫자 카운트, N-Back, 무게 저울, 동전 계산기.</p>
+                    </div>
+                    <div class="p-6 border-2 border-slate-100 rounded-xl">
+                        <h5 class="font-bold mb-2">전두엽 [VMPFC] 억제 제어</h5>
+                        <p class="text-sm text-slate-600">결함: 과잉 반응, 충동성. 처방: 신호등 지킴이, 색깔 사냥꾼, 감정 읽기, 에티켓.</p>
+                    </div>
+                    <div class="p-6 border-2 border-slate-100 rounded-xl">
+                        <h5 class="font-bold mb-2">두정엽 [Parietal] 시공간</h5>
+                        <p class="text-sm text-slate-600">결함: 조작 실패, 위치 기억 누락. 처방: 위치 기억, 선 따라가기, 요격, 블록 쌓기.</p>
+                    </div>
+                    <div class="p-6 border-2 border-slate-100 rounded-xl">
+                        <h5 class="font-bold mb-2">측두엽/해마 [Temporal] 기억</h5>
+                        <p class="text-sm text-slate-600">결함: 소리 변별 실패, 단기 회상 폭락. 처방: 첫소리 찾기, 전화번호 누르기, 사라진 물건.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. Red Flag -->
+            <section class="bg-red-50 p-8 rounded-2xl border-2 border-red-200">
+                <h3 class="text-2xl font-bold text-red-800 mb-4">7. 시스템 통합 및 임상 Red Flag (Escalation) 로직</h3>
+                <div class="space-y-4 text-sm text-red-900">
+                    <p><strong>Red Flag 1: 심각한 정신운동 지연</strong> - 3회 연속 Z-score > +3.0 이탈 시. 난이도 강제 강등 및 보호자 위험 알림 발송.</p>
+                    <p><strong>Red Flag 2: 학습 곡선 마이너스 역행</strong> - 4주간 정확도 15% 하락 시. 치매 악화 의심, 청각 위주 단순 훈련으로 강제 전환.</p>
+                </div>
+            </section>
+        </div>
+        <div class="bg-slate-900 text-slate-500 text-center py-6 text-xs italic">
+            Copyright © PlayLab Master Protocol v3.0 | 수석 임상 신경심리학자 작성
+        </div>
+    </div>
+</body>
+</html>

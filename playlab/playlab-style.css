@@ -1,0 +1,664 @@
+/**
+ * PlayLab Master Framework - Common Styles
+ * 하하랩 게임 콘텐츠 공통 스타일시트
+ * Version: 1.0
+ */
+
+/* ========== FONTS ========== */
+@font-face {
+    font-family: 'HappinessSansTitle';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2205@1.0/Happiness-Sans-Title.woff2') format('woff2');
+    font-weight: normal;
+    font-display: swap;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+.font-title {
+    font-family: 'HappinessSansTitle', sans-serif;
+}
+
+.game-font {
+    font-family: 'Jua', sans-serif;
+}
+
+.text-body {
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.font-medical {
+    font-family: 'Noto Sans KR', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+/* ========== LAYOUT ========== */
+body {
+    font-family: 'Jua', sans-serif;
+    background-color: #f8fafc;
+    color: #0f172a;
+    overflow: hidden;
+    user-select: none;
+    touch-action: manipulation;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+main {
+    flex-grow: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.center-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    padding-top: 5vh;
+}
+
+/* ========== UI COMPONENTS ========== */
+
+/* Menu Items */
+.menu-item {
+    width: 100%;
+    height: 100%;
+    min-height: 70px;
+    padding: 10px;
+    background: white;
+    border: 3px solid #cbd5e1;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #334155;
+    box-shadow: 0 4px 0 #94a3b8;
+}
+
+.menu-item:active {
+    transform: translateY(4px);
+    box-shadow: none;
+}
+
+.menu-item.selected {
+    background: #fff1f2;
+    color: #e11d48;
+    border: 4px solid #f43f5e;
+    box-shadow: 0 0 15px rgba(244, 63, 94, 0.4);
+    transform: scale(1.05);
+    z-index: 10;
+}
+
+/* Age Selection Buttons */
+.age-btn {
+    padding: 8px 4px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.age-btn.focused-mode {
+    border-color: #f43f5e !important;
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 20;
+}
+
+.age-btn.active-toddler {
+    background: #fef9c3;
+    color: #ca8a04;
+    border-color: #facc15;
+}
+
+.age-btn.active-elementary {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #4ade80;
+}
+
+.age-btn.active-teen {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #60a5fa;
+}
+
+.age-btn.active-adult {
+    background: #e0e7ff;
+    color: #4338ca;
+    border-color: #818cf8;
+}
+
+.age-btn.active-senior {
+    background: #f3e8ff;
+    color: #7e22ce;
+    border-color: #c084fc;
+}
+
+/* Indicator Buttons */
+.btn-indicator {
+    width: 16vh;
+    height: 16vh;
+    max-width: 140px;
+    max-height: 140px;
+    min-width: 80px;
+    min-height: 80px;
+    border-radius: 24px;
+    border-bottom: 8px solid rgba(0, 0, 0, 0.15);
+    transition: all 0.1s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: clamp(1.2rem, 3vh, 2rem);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    background-color: white;
+    position: relative;
+}
+
+.btn-indicator:active,
+.btn-indicator.active {
+    transform: translateY(4px);
+    border-bottom-width: 4px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
+    filter: brightness(0.95);
+}
+
+.pad-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(10px, 1.5vh, 20px);
+    padding: clamp(12px, 2vh, 24px);
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 40px;
+    border: 2px solid #e2e8f0;
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* ========== GAMEPAD UI ========== */
+.gamepad-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #166534;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s;
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+}
+
+.gamepad-badge.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.device-icon-wrapper {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.device-icon {
+    width: 16px;
+    height: 16px;
+    filter: brightness(0) invert(1);
+}
+
+.active-orange {
+    background-color: #14b8a6;
+}
+
+.inactive-gray {
+    background-color: #cbd5e1;
+}
+
+/* ========== RESULTS/METRICS ========== */
+.metric-card {
+    background: white;
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.metric-value {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #0f172a;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    font-weight: bold;
+    border-radius: 12px;
+    color: #64748b;
+    transition: all 0.2s;
+    flex: 1;
+}
+
+.tab-btn.active {
+    background-color: #0f172a;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* ========== ANIMATIONS ========== */
+@keyframes popIn {
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.pop-in {
+    animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes pulseText {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.blink-text {
+    animation: pulseText 2s infinite;
+}
+
+/* ========== TOAST NOTIFICATIONS ========== */
+#toast-container {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    pointer-events: none;
+}
+
+.toast-msg {
+    background-color: rgba(30, 41, 59, 0.95);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    margin-top: 10px;
+    animation: slideUpFade 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+/* ========== DUAL RESULT SYSTEM (간단/전문가 모드) ========== */
+
+/* 탭 전환 시스템 */
+.result-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    background: #f1f5f9;
+    padding: 6px;
+    border-radius: 16px;
+}
+
+.result-tabs .tab-btn {
+    flex: 1;
+    padding: 12px 24px;
+    font-weight: bold;
+    border-radius: 12px;
+    color: #64748b;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-size: 1rem;
+}
+
+.result-tabs .tab-btn.active {
+    background-color: #0f172a;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 간단 모드 스타일 */
+.easy-result-card {
+    background: white;
+    border-radius: 24px;
+    padding: 32px;
+    border: 2px solid #e2e8f0;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+    text-align: center;
+}
+
+.easy-icon-wrapper {
+    display: inline-block;
+    padding: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+    margin-bottom: 16px;
+}
+
+.easy-icon-wrapper .material-symbols-rounded {
+    color: #6366f1;
+}
+
+.easy-score-display {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #6366f1;
+    font-family: 'Noto Sans KR', sans-serif;
+    line-height: 1;
+}
+
+.easy-stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 24px;
+    margin-bottom: 16px;
+}
+
+.easy-stat-box {
+    background: #f8fafc;
+    padding: 16px 24px;
+    border-radius: 16px;
+    min-width: 120px;
+}
+
+.easy-stat-label {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #94a3b8;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.easy-stat-value {
+    font-size: 1.75rem;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+/* 전문가 모드 스타일 */
+.clinical-mode {
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+.clinical-report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+}
+
+.clinical-report-header h2 {
+    font-size: 2rem;
+    font-weight: 900;
+    color: #0f172a;
+    font-family: 'Noto Sans KR', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.clinical-report-header p {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+    margin-top: 4px;
+}
+
+/* 뇌 활성화 카드 */
+.brain-region-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+}
+
+.brain-region-label {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.brain-region-name {
+    font-size: 1.25rem;
+    font-weight: 900;
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+.brain-region-status {
+    font-size: 0.875rem;
+    opacity: 0.95;
+    line-height: 1.5;
+}
+
+/* 9각 레이더 차트 컨테이너 */
+.radar-chart-container {
+    background: #f8fafc;
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.03);
+    position: relative;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.radar-chart-container canvas {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 메트릭 그리드 */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.metrics-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+/* 임상 피드백 박스 */
+.clinical-feedback-box {
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 24px;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.05);
+}
+
+.feedback-section-title {
+    font-size: 1rem;
+    font-weight: 900;
+    color: #3730a3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.feedback-section-title .material-symbols-rounded {
+    font-size: 1.25rem;
+}
+
+.feedback-content {
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.875rem;
+    color: #475569;
+    line-height: 1.8;
+}
+
+/* 리스크 스코어 카드 */
+.risk-score-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.4);
+}
+
+.risk-score-label {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.risk-score-value {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.risk-score-desc {
+    font-size: 1rem;
+    font-weight: 500;
+    opacity: 0.9;
+}
+
+/* Advice Box */
+.advice-box {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 4px solid #6366f1;
+    margin-top: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.advice-box p {
+    color: #475569;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin: 0;
+}
+
+.advice-box strong {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+/* 반응형 조정 */
+@media (max-width: 768px) {
+    .easy-score-display {
+        font-size: 2.5rem;
+    }
+
+    .easy-stats-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .easy-stat-box {
+        min-width: 100%;
+    }
+
+    .clinical-report-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .metrics-grid,
+    .metrics-grid-3 {
+        grid-template-columns: 1fr;
+    }
+
+    .radar-chart-container {
+        min-height: 300px;
+    }
+}
