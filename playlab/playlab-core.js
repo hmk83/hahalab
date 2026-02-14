@@ -32,6 +32,32 @@ const PlayLabCore = (() => {
         DPAD_RIGHT: 15
     };
 
+    /**
+     * 입력 기기 타입 상수
+     * 반응속도 측정 시 사용된 입력 기기를 식별
+     */
+    const INPUT_DEVICES = {
+        TOUCH: 'TOUCH',
+        MOUSE: 'MOUSE',
+        GAMEPAD: 'GAMEPAD'
+    };
+
+    /**
+     * 입력 기기별 반응속도(RT) 오프셋 (단위: ms)
+     * 
+     * 과학적 근거:
+     * - TOUCH: 0ms (기준, 직접 터치이므로 추가 지연 없음)
+     * - MOUSE: -120ms (피츠의 법칙 기반, 커서 이동 시간 보정)
+     *   참고: Fitts's Law - MT = a + b * log2(2D/W)
+     *   웹 기반 환경에서 평균 120ms의 마우스 이동 시간 보정
+     * - GAMEPAD: -80ms (물리적 버튼 스트로크 및 촉각 피드백 지연)
+     */
+    const DEVICE_RT_OFFSETS = {
+        TOUCH: 0,
+        MOUSE: -120,
+        GAMEPAD: -80
+    };
+
     // ========== AUDIO MANAGER ==========
     const AudioManager = {
         init() {
@@ -283,6 +309,8 @@ const PlayLabCore = (() => {
      * - 9가지 핵심 인지 지표 계산
      * - 뇌 활성화 영역 분석
      * - 연령별 맞춤형 임상 피드백 생성
+     * - 입력 기기별 RT 보정 (v1.1 추가)
+     * - 4단계 임상 오류 분류 (v1.1 추가)
      */
     const ClinicalAnalysis = {
         sessionData: {
@@ -293,6 +321,148 @@ const PlayLabCore = (() => {
             lapses: 0,
             startTime: 0,
             blockData: []  // { rt, result, validity, level, round, timestamp }
+        },
+
+        /**
+         * 4단계 임상 오류 분류 (Clinical Response Classification)
+         * 
+         * @param {number} rt - 반응 시간 (clinical_rt 사용 권장)
+         * @param {string} result - 'CORRECT', 'WRONG', 'TIMEOUT'
+         * @param {Object} timingContext - { maxTime, elapsedTime }
+         * @returns {Object} - { type, label, description, isValid, penalty }
+         * 
+         * 분류 기준:
+         * 1. Anticipatory (예측 오류): RT < 150ms
+         *    - 인간의 시각 자극 최소 생리적 반응 시간 150-180ms 기준
+         *    - 자극을 보고 반응한 것이 아닌 예측 반응
+         * 2. Omission (누락 오류): 타임아웃 또는 무응답
+         *    - 주의력 결핍(ADHD) 지표
+         * 3. Commission (충동 오류): 오답 또는 No-Go 자극 반응
+         *    - 억제 조절 능력 부족 지표
+         * 4. Motor Delay (운동 지연): 제한 시간 마지막 10% 구간 반응
+         *    - 순수 인지 vs 신체 조절 능력 구분
+         * 5. Success (성공): 정상 범위 내 정답
+         */
+        classifyResponse(rt, result, timingContext = {}) {
+            const { maxTime = 5000, elapsedTime = rt } = timingContext;
+
+            // 1. Anticipatory (예측 오류): 150ms 미만
+            if (rt < 150) {
+                return {
+                    type: 'ANTICIPATORY',
+                    label: '예측 오류',
+                    description: '자극을 보고 반응한 것이 아닌 예측 반응 (충동성 지표 상승)',
+                    isValid: false,
+                    penalty: 1.0, // 완전 무효
+                    color: '#f59e0b'
+                };
+            }
+
+            // 2. Omission (누락 오류): 타임아웃
+            if (result === 'TIMEOUT' || rt >= maxTime) {
+                return {
+                    type: 'OMISSION',
+                    label: '누락 오류',
+                    description: '타겟 소멸 시까지 무응답 (주의력 결핍 지표)',
+                    isValid: false,
+                    penalty: 1.0, // 실패
+                    color: '#64748b'
+                };
+            }
+
+            // 3. Commission (충동 오류): 오답
+            if (result === 'WRONG') {
+                return {
+                    type: 'COMMISSION',
+                    label: '충동 오류',
+                    description: '오답 또는 No-Go 자극에 반응 (억제 조절 능력 부족)',
+                    isValid: false,
+                    penalty: 1.0, // 실패
+                    color: '#ef4444'
+                };
+            }
+
+            // 4. Motor Delay (운동 지연): 마지막 10% 구간
+            const motorDelayThreshold = maxTime * 0.9;
+            if (elapsedTime >= motorDelayThreshold && result === 'CORRECT') {
+                return {
+                    type: 'MOTOR_DELAY',
+                    label: '운동 지연',
+                    description: '제한 시간 마지막 10% 구간에서 반응 (신체 조절 지연)',
+                    isValid: true,
+                    penalty: 0.3, // 70% 점수 부여
+                    color: '#eab308'
+                };
+            }
+
+            // 5. Success (성공): 정상 범위 내 정답
+            return {
+                type: 'SUCCESS',
+                label: '성공',
+                description: '정상 범위 내 정확한 반응',
+                isValid: true,
+                penalty: 0,
+                color: '#10b981'
+            };
+        },
+
+        /**
+         * 입력 기기별 반응속도 오프셋 적용
+         * 
+         * @param {number} rawRT - 원시 반응 시간 (performance.now() 측정값)
+         * @param {string} deviceType - 'TOUCH', 'MOUSE', 'GAMEPAD'
+         * @returns {Object} - { raw_rt, offset_applied, clinical_rt, device }
+         * 
+         * 과학적 근거:
+         * - 터치: 직접 접촉이므로 오프셋 없음 (0ms)
+         * - 마우스: 피츠의 법칙 기반 커서 이동 시간 보정 (-120ms)
+         * - 게임패드: 물리적 버튼 스트로크 지연 보정 (-80ms)
+         */
+        applyDeviceOffset(rawRT, deviceType) {
+            const offset = DEVICE_RT_OFFSETS[deviceType] || 0;
+            const clinicalRT = Math.max(0, rawRT + offset);
+
+            return {
+                raw_rt: Math.round(rawRT),
+                offset_applied: offset,
+                clinical_rt: Math.round(clinicalRT),
+                device: deviceType || 'UNKNOWN'
+            };
+        },
+
+        /**
+         * Ceiling 효과 적용 (상한선 처리)
+         * 
+         * @param {number} clinicalRT - 보정된 임상 반응 시간
+         * @param {number} ceilingValue - Ceiling 기준값 (기본 600ms)
+         * @returns {Object} - { normalized_rt, is_ceiling, score }
+         * 
+         * 목적:
+         * - 과도한 속도 경쟁으로 인한 부상 방지
+         * - 600ms 이하는 모두 만점 처리 (더 빨라도 점수 증가 없음)
+         * - 인지 능력 측정에 집중, 단순 반사신경 경쟁 방지
+         */
+        applyCeiling(clinicalRT, ceilingValue = 600) {
+            // 600ms 이하는 모두 만점 처리
+            if (clinicalRT <= ceilingValue) {
+                return {
+                    normalized_rt: 100,
+                    is_ceiling: true,
+                    score: 100,
+                    message: `${ceilingValue}ms 이하는 모두 만점입니다`
+                };
+            }
+
+            // 600ms 이상은 선형 감소
+            const maxRT = 2000; // 최대 2초
+            const score = Math.max(0, 100 - ((clinicalRT - ceilingValue) / (maxRT - ceilingValue)) * 100);
+
+            return {
+                normalized_rt: Math.round(score),
+                is_ceiling: false,
+                score: Math.round(score),
+                message: '정상 범위'
+            };
         },
 
         recordTrial(trialData) {
@@ -359,9 +529,9 @@ const PlayLabCore = (() => {
             if (isNaN(sus)) sus = 0;
             if (sus > 100) sus = 100;
 
-            // 5. Anticipatory Rate (RT < 200ms, >= 100ms)
+            // 5. Anticipatory Rate (RT < 150ms) - v1.1 임상 표준 적용
             const anticipatoryCount = data.blockData.filter(d =>
-                d.rt < 200 && d.rt >= 100
+                d.rt < 150 && d.rt >= 0
             ).length;
             const anticipatoryRate = (anticipatoryCount / totalAttempts) * 100;
 
@@ -419,7 +589,7 @@ const PlayLabCore = (() => {
                     execution: Math.round((normRT + normACC) / 2),
                     inhibition: Math.max(0, Math.round(100 - anticipatoryRate * 5)),
                     vigilance: Math.max(0, Math.round(100 - lapseRate * 10)),
-                    errorMonitoring: Math.round(postErrorSlowing),
+                    errorMonitoring: Math.min(100, Math.round(postErrorSlowing)),
                     endurance: Math.max(0, Math.round(100 - fatigueIndex))
                 }
             };
@@ -1408,6 +1578,7 @@ const PlayLabCore = (() => {
         // Constants
         SOUNDS,
         BUTTONS,
+        INPUT_DEVICES,  // v1.1 추가: 입력 기기 타입 상수
 
         // Modules
         Audio: AudioManager,
@@ -1429,7 +1600,7 @@ const PlayLabCore = (() => {
 
         // Helper functions
         getVersion() {
-            return '1.0';
+            return '1.1';  // 임상 표준 RT 측정 시스템 추가
         }
     };
 })();

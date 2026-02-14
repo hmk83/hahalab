@@ -347,12 +347,12 @@
                 };
             }, []);
 
-            // [NEW] 4. 60분 주기 등급 및 내담자 수 체크
+            // [REFACTOR v1.0.5] 내담자 수 제한 체크 (max_client_limit 기반)
             const [showOverLimitModal, setShowOverLimitModal] = useState(null);
             const [initialDashboardView, setInitialDashboardView] = useState(null);
 
             useEffect(() => {
-                const checkPlanLimits = async () => {
+                const checkClientLimit = async () => {
                     const stored = localStorage.getItem('haha_lab_session');
                     if (!stored) return;
 
@@ -371,58 +371,56 @@
                             return;
                         }
 
-                        // 실제 등록된 클라이언트 수 조회
+                        // 실제 활성 내담자 수 조회 (정지 제외)
                         const { count: actualCount, error: countError } = await supabase
                             .from('clients')
                             .select('*', { count: 'exact', head: true })
                             .eq('teacher_id', teacher.teacher_id)
-                            .neq('status', 'deleted');
+                            .neq('status', 'deleted')
+                            .neq('status', 'suspended'); // [REFACTOR v1.0.5] 정지 상태 제외
 
                         if (countError) {
                             console.error('내담자 수 조회 실패:', countError);
                             return;
                         }
 
-                        // 등급별 제한 수
-                        const planType = (teacher.plan_type || 'normal').toLowerCase();
-                        const planLimit = planType === 'gold' ? 30 : planType === 'silver' ? 10 : planType === 'bronze' ? 1 : 0;
+                        // max_client_limit 기반 제한 수 (기본값 40)
+                        const maxLimit = teacher.max_client_limit || 40;
 
-                        console.log(`🔍 등급 체크 - 현재: ${actualCount}명 / 제한: ${planLimit}명 (${planType.toUpperCase()})`);
+                        console.log(`🔍 내담자 수 체크 - 현재: ${actualCount}명 / 제한: ${maxLimit}명`);
 
                         // 초과 여부 확인
-                        if (actualCount > planLimit) {
-                            console.warn(`⚠️ 내담자 수 초과 감지: ${actualCount} > ${planLimit}`);
+                        if (actualCount > maxLimit) {
+                            console.warn(`⚠️ 내담자 수 초과 감지: ${actualCount} > ${maxLimit}`);
                             setShowOverLimitModal({
                                 show: true,
                                 actualCount,
-                                planLimit,
-                                planType: teacher.plan_type
+                                maxLimit
                             });
                         }
 
                         // localStorage 세션 업데이트
                         const updatedSession = {
                             ...currentUser,
-                            plan_type: teacher.plan_type,
-                            registered_clients: teacher.registered_clients,
+                            max_client_limit: teacher.max_client_limit,
                             actual_client_count: actualCount
                         };
                         localStorage.setItem('haha_lab_session', JSON.stringify(updatedSession));
 
                     } catch (e) {
-                        console.error('등급 체크 오류:', e);
+                        console.error('내담자 수 체크 오류:', e);
                     }
                 };
 
                 // 초기 체크 (로그인 시)
                 if (user) {
-                    checkPlanLimits();
+                    checkClientLimit();
                 }
 
                 // 60분 타이머 설정
                 const interval = setInterval(() => {
                     if (user) {
-                        checkPlanLimits();
+                        checkClientLimit();
                     }
                 }, 60 * 60 * 1000); // 60분
 
@@ -705,10 +703,10 @@
                         />
                     )}
 
-                    {/* [NEW] 내담자 초과 경고 모달 */}
-                    {showOverLimitModal && showOverLimitModal.show && (
-                        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[70]">
-                            <div className="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 shadow-2xl">
+                    {/* [REFACTOR v1.0.5] 내담자 수 제한 초과 모달 - 간결하게 수정 */}
+                    {showOverLimitModal?.show && (
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowOverLimitModal(null)}>
+                            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                                 <div className="flex items-start gap-4 mb-6">
                                     <div className="bg-red-100 p-3 rounded-full">
                                         <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -716,26 +714,26 @@
                                         </svg>
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-2xl font-bold mb-2 text-gray-900">등급 제한 수 초과</h3>
+                                        <h3 className="text-2xl font-bold mb-2 text-gray-900">내담자 수 제한 초과</h3>
                                         <p className="text-gray-600 mb-4">
-                                            현재 등록된 내담자 수가 <span className="font-bold text-red-600">{showOverLimitModal.planType.toUpperCase()}</span> 등급의 제한을 초과했습니다.
+                                            현재 등록된 활성 내담자 수가 최대 등록 가능 수를 초과했습니다.
                                         </p>
                                         <div className="bg-gray-100 p-4 rounded-xl mb-4">
                                             <div className="flex justify-between items-center">
-                                                <span className="text-sm text-gray-600">실제 등록 수:</span>
+                                                <span className="text-sm text-gray-600">활성 내담자 수:</span>
                                                 <span className="text-2xl font-black text-red-600">{showOverLimitModal.actualCount}명</span>
                                             </div>
                                             <div className="flex justify-between items-center mt-2">
-                                                <span className="text-sm text-gray-600">등급별 제한 수:</span>
-                                                <span className="text-2xl font-black text-gray-900">{showOverLimitModal.planLimit}명</span>
+                                                <span className="text-sm text-gray-600">최대 등록 가능 수:</span>
+                                                <span className="text-2xl font-black text-gray-900">{showOverLimitModal.maxLimit}명</span>
                                             </div>
                                             <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-300">
                                                 <span className="text-sm font-bold text-gray-900">초과 인원:</span>
-                                                <span className="text-2xl font-black text-red-600">+{showOverLimitModal.actualCount - showOverLimitModal.planLimit}명</span>
+                                                <span className="text-2xl font-black text-red-600">+{showOverLimitModal.actualCount - showOverLimitModal.maxLimit}명</span>
                                             </div>
                                         </div>
                                         <p className="text-sm text-gray-700 mb-4">
-                                            ⚠️ 등급을 업그레이드하거나, <span className="font-bold">초과한 내담자를 정지</span> 처리해주세요.
+                                            ⚠️ 초과한 내담자를 <span className="font-bold">정지 처리</span>하거나 관리자에게 문의해주세요.
                                             <br />
                                             관리자 문의: <span className="font-bold">010-8416-3323</span> (카톡/문자)
                                         </p>
@@ -744,21 +742,9 @@
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setShowOverLimitModal(null)}
-                                        className="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded-xl font-bold transition"
+                                        className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition"
                                     >
-                                        나중에 처리
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setShowOverLimitModal(null);
-                                            // Dashboard의 내담자 관리 탭으로 이동
-                                            setView('dashboard');
-                                            setInitialDashboardView('clients');
-                                            setDashboardKey(prev => prev + 1); // 강제 리렌더
-                                        }}
-                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition"
-                                    >
-                                        내담자 관리로 이동
+                                        확인
                                     </button>
                                 </div>
                             </div>
@@ -1019,7 +1005,7 @@
 
                     const fullPhone = `010-${form.phonePart.slice(0, 4)}-${form.phonePart.slice(4)}`; // Simple formatting
 
-                    // Insert
+                    // Insert [REFACTOR v1.0.5] max_client_limit은 DB 기본값 40 사용
                     const { error } = await supabase.from('teachers').insert({
                         center: form.center,
                         name: form.name,
@@ -1028,10 +1014,8 @@
                         email: form.email,
                         gender: form.gender,
                         contact: fullPhone,
-                        contact: fullPhone,
                         status: 'request', // Wait for approval
                         role: 'teacher',
-                        plan: 'basic', // [MODIFIED] Default to Basic (General Member) - limit 0
                         age: 0 // Default
                     });
 
@@ -1275,10 +1259,7 @@
                                 <span className="text-slate-500 font-bold">이메일</span>
                                 <span className="font-bold">{user.email}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
-                                <span className="text-slate-500 font-bold">요금제</span>
-                                <span className="font-bold text-blue-600">{user.plan}</span>
-                            </div>
+                            {/* [REFACTOR v1.0.5] 요금제 표시 제거 */}
                             <div className="flex justify-center mt-6">
                                 <button onClick={onLogout} className="text-xs px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition font-bold">로그아웃</button>
                             </div>
@@ -1803,7 +1784,7 @@
             const [prefilledData, setPrefilledData] = useState(null);
             const [conflictData, setConflictData] = useState(null);
             const [mobileTab, setMobileTab] = useState('schedule');
-            const [showPlanModal, setShowPlanModal] = useState(false); // [NEW] Plan Limit Modal
+            // [REFACTOR v1.0.5] showPlanModal 제거
 
             useEffect(() => {
                 const handleKeyDown = (e) => {
@@ -1987,10 +1968,7 @@
                         <ClientManager
                             clients={safeClients}
                             setDragItem={setDragItem}
-                            onNewClick={() => {
-                                if (user.plan === 'basic') setShowPlanModal(true);
-                                else setRightPanel({ type: 'form_select' });
-                            }}
+                            onNewClick={() => setRightPanel({ type: 'form_select' })}
                             onClientClick={(client) => setRightPanel({ type: 'detail', client })}
                             settings={settings}
                         />
@@ -2026,10 +2004,7 @@
                                     forcedTab="client"
                                     clients={safeClients}
                                     setDragItem={setDragItem}
-                                    onNewClick={() => {
-                                        if (user.plan === 'basic') setShowPlanModal(true);
-                                        else setRightPanel({ type: 'form_select' });
-                                    }}
+                                    onNewClick={() => setRightPanel({ type: 'form_select' })}
                                     onClientClick={(client) => setRightPanel({ type: 'detail', client })}
                                     settings={settings}
                                 />
@@ -2039,10 +2014,7 @@
                                     forcedTab="reserve"
                                     clients={safeClients}
                                     setDragItem={setDragItem}
-                                    onNewClick={() => {
-                                        if (user.plan === 'basic') setShowPlanModal(true);
-                                        else setRightPanel({ type: 'form_select' });
-                                    }}
+                                    onNewClick={() => setRightPanel({ type: 'form_select' })}
                                     onClientClick={(client) => setRightPanel({ type: 'detail', client })}
                                     settings={settings}
                                 />
@@ -2142,8 +2114,7 @@
                         </button>
                     </div>
 
-                    {/* [NEW] Plan Info Modal */}
-                    {showPlanModal && <PlanInfoModal onClose={() => setShowPlanModal(false)} userPlan={user.plan} />}
+                    {/* [REFACTOR v1.0.5] PlanInfoModal 제거 */}
 
                     {showScheduleModal && (
                         <AddScheduleModal
@@ -4590,54 +4561,7 @@
             )
         }
 
-        // [NEW] Plan Info Modal
-        function PlanInfoModal({ onClose, userPlan }) {
-            const plans = [
-                { name: 'Basic', limit: 0, desc: '일반 회원 (내담자 등록 불가)' },
-                { name: 'Standard', limit: 10, desc: '일반 치료사' },
-                { name: 'Pro', limit: 50, desc: '전문 치료 센터' },
-                { name: 'Enterprise', limit: 200, desc: '대형 병원 및 기관' }
-            ];
-
-            return (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-[#FDE047]"></div>
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <Lock size={32} className="text-slate-400" />
-                            </div>
-                            <h3 className="font-black text-2xl text-slate-900 mb-2">플랜 업그레이드 필요</h3>
-                            <p className="text-sm text-slate-500 font-bold leading-relaxed">
-                                현재 <span className="text-slate-900">{userPlan}</span> 플랜을 이용 중입니다.<br />
-                                내담자를 등록하려면 플랜 업그레이드가 필요합니다.
-                            </p>
-                        </div>
-
-                        <div className="space-y-3 mb-8">
-                            {plans.map((p, i) => (
-                                <div key={i} className={`flex justify-between items-center p-4 rounded-xl border ${p.name.toLowerCase() === (userPlan || '').toLowerCase() ? 'bg-slate-50 border-slate-900 ring-1 ring-slate-900' : 'bg-white border-slate-100'}`}>
-                                    <div>
-                                        <p className="font-bold text-slate-900 text-sm">{p.name} Plan</p>
-                                        <p className="text-xs text-slate-400 font-medium">{p.desc}</p>
-                                    </div>
-                                    <span className="text-xs font-black bg-slate-100 px-2 py-1 rounded text-slate-600">{p.limit}명</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="space-y-3">
-                            <a href="mailto:support@hahalab.com" className="block w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-center hover:bg-slate-800 transition shadow-lg shadow-slate-900/20">
-                                고객센터 문의하기
-                            </a>
-                            <button onClick={onClose} className="block w-full py-4 text-slate-400 font-bold text-sm hover:text-slate-600">
-                                닫기
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
+        // [REFACTOR v1.0.5] PlanInfoModal 컴포넌트 제거
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);

@@ -450,6 +450,78 @@
             color: white;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
+
+        /* Input Selection Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .input-card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-overlay.active .input-card {
+            transform: scale(1);
+        }
+
+        .input-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 20px;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            background: #f8fafc;
+            color: #64748b;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .input-btn:hover {
+            border-color: #cbd5e1;
+            background: #f1f5f9;
+        }
+
+        .input-btn:active {
+            transform: scale(0.98);
+        }
+
+        .input-btn.selected {
+            border-color: #6366f1;
+            background: #eef2ff;
+            color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .input-icon {
+            font-size: 32px;
+            color: inherit;
+        }
     </style>
 </head>
 
@@ -470,12 +542,6 @@
                         GRADE LEVEL 1</span>
                     <h1 class="text-4xl sm:text-6xl font-title font-bold tracking-tight text-slate-800 mb-2">색깔 맞추기</h1>
                     <p class="text-lg text-slate-500 font-medium font-medical">순차적 작업 기억 및 실행 기능 훈련</p>
-
-                    <p
-                        class="blink-text text-rose-500 font-bold mt-3 bg-rose-50 py-1 px-4 rounded-full inline-flex items-center gap-1 shadow-sm border border-rose-100">
-                        <span class="material-symbols-rounded text-base">cancel</span>
-                        <span>빨간색(✖) 버튼을 누르면 시작됩니다</span>
-                    </p>
                 </div>
 
                 <div id="container-age"
@@ -581,6 +647,8 @@
                     </div>
                 </div>
             </div>
+
+
         </div>
 
         <div id="screen-result" class="hidden w-full h-full relative overflow-y-auto bg-white">
@@ -623,7 +691,7 @@
                         </div>
                     </div>
                     <div class="bg-indigo-50 rounded-2xl p-6 text-center border border-indigo-100">
-                        <span class="text-indigo-900 font-bold text-lg">💡 닥터 플레이의 한마디</span>
+                        <span class="text-indigo-900 font-bold text-lg">💡 하하랩의 한마디</span>
                         <p class="text-indigo-700 mt-2 font-medium" id="easy-advice">매일 10분씩 연습하면 뇌가 더 튼튼해져요!</p>
                     </div>
                 </div>
@@ -645,10 +713,7 @@
                             class="bg-slate-50 rounded-2xl p-4 flex flex-col items-center justify-center border border-slate-200 shadow-inner relative">
                             <canvas id="radarChart"></canvas>
 
-                            <!-- 지표 설명 섹션 -->
-                            <div id="metric-descriptions" class="mt-6 w-full text-left space-y-2">
-                                <!-- JavaScript로 동적으로 채워짐 -->
-                            </div>
+
                         </div>
 
                         <div class="flex flex-col justify-between gap-4">
@@ -691,8 +756,19 @@
                     </div>
                 </div>
 
+                <!-- [이동] 지표 설명 섹션 -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 mb-8">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
+                        <span class="material-symbols-rounded">help</span>
+                        지표 상세 설명
+                    </h3>
+                    <div id="metric-descriptions" class="w-full text-left space-y-2">
+                        <!-- JavaScript로 동적으로 채워짐 -->
+                    </div>
+                </div>
+
                 <div class="flex flex-col items-center gap-4 mt-8 opacity-60">
-                    <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+                    <p class="text-[12px] text-slate-400 text-center leading-relaxed">
                         * 본 결과는 의료법 상의 확정 진단이 아니며, 보조적 진단 자료(Auxiliary Diagnostic Data)로 활용되어야 합니다.<br>
                         Phase 1/2 Clinical Validation in progress.
                     </p>
@@ -702,6 +778,39 @@
     </main>
 
     <div id="toast-container"></div>
+
+    <!-- Input Selection Modal -->
+    <div id="modal-input" class="modal-overlay">
+        <div class="input-card">
+            <h2 class="text-2xl font-black text-slate-800 mb-2">입력 장치 선택</h2>
+            <p class="text-slate-500 mb-6 font-medium">사용하실 입력 장치를 선택해 주세요.<br>정확한 반응속도 측정을 위해 필요합니다.</p>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button class="input-btn flex flex-col items-center justify-center py-4" onclick="selectInput('TOUCH')">
+                    <span class="material-symbols-rounded input-icon text-indigo-500 text-3xl mb-1">touch_app</span>
+                    <span class="font-bold text-slate-700">터치스크린</span>
+                    <p class="text-[10px] text-indigo-400 mt-1 font-medium">기본 (보정 없음)</p>
+                </button>
+                <button class="input-btn flex flex-col items-center justify-center py-4" onclick="selectInput('MOUSE')">
+                    <span class="material-symbols-rounded input-icon text-blue-500 text-3xl mb-1">mouse</span>
+                    <span class="font-bold text-slate-700">마우스</span>
+                    <p class="text-[10px] text-blue-400 mt-1 font-medium">정밀 보정 (-120ms)</p>
+                </button>
+                <button
+                    class="input-btn col-span-2 relative overflow-hidden flex flex-col items-center justify-center py-4"
+                    onclick="selectInput('GAMEPAD')">
+                    <span
+                        class="material-symbols-rounded input-icon text-emerald-500 text-3xl mb-1">videogame_asset</span>
+                    <span class="font-bold text-slate-700">게임패드 (조이스틱)</span>
+                    <p class="text-[10px] text-emerald-400 mt-1 font-medium">입력 보정 (-80ms)</p>
+                    <div
+                        class="absolute inset-0 bg-slate-100/50 backdrop-blur-[1px] flex items-center justify-center font-bold text-slate-500 text-sm opacity-0 hover:opacity-100 transition-opacity">
+                        선택 가능
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
     <div id="modal-confirm-home"
         class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[110] flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-3xl p-6 text-center pop-in shadow-2xl">
@@ -753,21 +862,35 @@
 
         const CONFIG = {
             TOTAL_ROUNDS: 10,
+            FAIL_ON_MOTOR_DELAY: false,  // 운동 지연 시 실패 처리 여부 (false: 70% 점수, true: 실패)
             BUTTONS: { RED: 0, YELLOW: 1, GREEN: 2, BLUE: 3, EXIT: 9, DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15 },
             COLORS: ['red', 'yellow', 'green', 'blue'],
-            AGE_GROUPS: ['TODDLER', 'ELEMENTARY', 'TEEN', 'ADULT', 'SENIOR']
+            AGE_GROUPS: ['TODDLER', 'ELEMENTARY', 'TEEN', 'ADULT', 'SENIOR'],
+            TIMING: {
+                'TODDLER': { MAX_TIME: 5000 },
+                'ELEMENTARY': { MAX_TIME: 4000 },
+                'TEEN': { MAX_TIME: 3000 },
+                'ADULT': { MAX_TIME: 3000 },
+                'SENIOR': { MAX_TIME: 5000 }
+            }
         };
 
         let state = {
             screen: 'MENU',
             ageGroup: 'TODDLER',
+            inputMode: null, // 'TOUCH', 'MOUSE', 'GAMEPAD'
             gamepadIndex: null,
             menuFocus: 'LEVEL', // 'LEVEL' or 'AGE'
             menuIndex: 0, // Level Index (0-5)
             ageMenuIndex: 0, // Age Group Index (0-4)
             level: 1, round: 1, sequence: [], inputIndex: 0,
-            sessionData: { rawRTs: [], validRTs: [], accuracies: [], errors: 0, lapses: 0, startTime: 0, blockData: [] },
-            isRoundActive: false, lastButtonState: {}, lastNavTime: 0, modalFocusIndex: 0
+            sessionData: {
+                rawRTs: [], validRTs: [], accuracies: [], errors: 0, lapses: 0, startTime: 0, blockData: [],
+                // Clinical Metrics
+                anticipatory: 0, omission: 0, commission: 0, motorDelay: 0, correct: 0, rtSum: 0, total: 0
+            },
+            isRoundActive: false, lastButtonState: {}, lastNavTime: 0, modalFocusIndex: 0,
+            problemTimer: null
         };
 
         const els = {
@@ -775,6 +898,7 @@
             menuList: document.getElementById('level-list'),
             game: { level: document.getElementById('display-level'), round: document.getElementById('display-round'), msg: document.getElementById('msg-center'), container: document.getElementById('sequence-container'), timer: document.getElementById('reaction-timer'), indicator: document.getElementById('game-gamepad-indicator') },
             menuIndicator: document.getElementById('menu-gamepad-indicator'),
+            modalInput: document.getElementById('modal-input'), // Added
             report: {
                 ageGroup: document.getElementById('report-age-group'), totalScore: document.getElementById('report-total-score'), riskLabel: document.getElementById('report-risk-label'), scoreBar: document.getElementById('score-bar'),
                 valRT: document.getElementById('val-rt'), valACC: document.getElementById('val-acc'), valIIV: document.getElementById('val-iiv'), valSUS: document.getElementById('val-sus'), feedback: document.getElementById('report-feedback-text'),
@@ -786,6 +910,14 @@
             modalDesc: document.getElementById('modal-desc')
         };
 
+        function selectInput(mode) {
+            state.inputMode = mode;
+            els.modalInput.classList.remove('active');
+            updateInputIndicator(); // 인디케이터만 업데이트
+            // state.isRoundActive = false;
+            // startRound(); // 게임 자동 시작 제거
+        }
+
         let radarChartInstance = null;
 
         function init() {
@@ -793,6 +925,11 @@
             window.addEventListener("gamepadconnected", (e) => { state.gamepadIndex = e.gamepad.index; updateGamepadUI(true); showToast("🎮 Gamepad Connected"); });
             window.addEventListener("gamepaddisconnected", (e) => { if (state.gamepadIndex === e.gamepad.index) { state.gamepadIndex = null; updateGamepadUI(false); } });
             setAgeGroup('TODDLER');
+
+            // [UX 개선] 최초 접속 시 입력 장치 선택 모달 표시
+            setTimeout(() => {
+                els.modalInput.classList.add('active');
+            }, 500);
         }
 
         function updateGamepadUI(connected) {
@@ -824,6 +961,12 @@
             } else {
                 clinicalTab.classList.add('active'); easyTab.classList.remove('active');
                 clinicalView.classList.remove('hidden'); easyView.classList.add('hidden');
+
+                // [UX 개선] 탭 전환 시 차트를 새로 그려 애니메이션 효과 재생
+                if (state.lastMetrics) {
+                    // 약간의 딜레이를 주어 화면 전환 후 애니메이션 시작
+                    setTimeout(() => renderChart(state.lastMetrics.chartData), 50);
+                }
             }
         }
 
@@ -1102,10 +1245,25 @@
         }
 
         function startGame(level) {
+            // 입력 장치가 선택되지 않았으면 게임 시작 불가
+            if (!state.inputMode) {
+                els.modalInput.classList.add('active');
+                showToast("입력 장치를 먼저 선택해주세요.");
+                return;
+            }
+
             state.level = level; state.round = 1;
-            state.sessionData = { rawRTs: [], validRTs: [], accuracies: [], errors: 0, lapses: 0, startTime: 0, blockData: [] };
+            // state.inputMode = null; // [삭제] 입력 모드 초기화하지 않음 (한 번 선택하면 유지)
+            state.sessionData = {
+                rawRTs: [], validRTs: [], accuracies: [], errors: 0, lapses: 0, startTime: 0, blockData: [],
+                anticipatory: 0, omission: 0, commission: 0, motorDelay: 0, correct: 0, rtSum: 0, total: 0
+            };
             state.screen = 'GAME';
-            updateScreenVisibility(); updateHUD(); startRound();
+            updateScreenVisibility();
+            updateHUD();
+
+            // [변경] 바로 라운드 시작
+            startRound();
         }
 
         function updateScreenVisibility() {
@@ -1119,6 +1277,29 @@
             els.game.level.innerText = state.level;
             els.game.round.innerText = state.round;
             els.game.timer.innerText = "0ms";
+            updateInputIndicator();
+        }
+
+        function updateInputIndicator() {
+            const el = document.getElementById('game-gamepad-indicator');
+            if (!el) return;
+            if (!state.inputMode) { el.classList.add('hidden'); return; }
+
+            el.classList.remove('hidden');
+            // Reset base classes
+            el.className = 'rounded-full p-1 border flex items-center justify-center transition-all bg-white';
+
+            let icon = ''; let colorClass = '';
+            if (state.inputMode === 'TOUCH') {
+                icon = 'touch_app'; colorClass = 'text-amber-500 border-amber-200 shadow-sm';
+            } else if (state.inputMode === 'MOUSE') {
+                icon = 'mouse'; colorClass = 'text-blue-500 border-blue-200 shadow-sm';
+            } else if (state.inputMode === 'GAMEPAD') {
+                icon = 'videogame_asset'; colorClass = 'text-emerald-500 border-emerald-200 shadow-sm';
+            }
+
+            el.classList.add(...colorClass.split(' '));
+            el.innerHTML = `<span class="material-symbols-rounded text-lg block">${icon}</span>`;
         }
 
         function startRound() {
@@ -1146,50 +1327,206 @@
                 });
                 state.sessionData.startTime = performance.now();
                 state.isRoundActive = true;
+
+                // Start Omission Timer
+                const maxTime = CONFIG.TIMING[state.ageGroup].MAX_TIME;
+                if (state.problemTimer) clearTimeout(state.problemTimer);
+                state.problemTimer = setTimeout(() => {
+                    checkAnswer(null, 'TIMEOUT');
+                }, maxTime);
+
             }, 1000 + (Math.random() * 500));
         }
 
         function handleTouch(btnIdx) {
             if (state.screen === 'GAME') {
+                // Strict Input Control
+                if (!state.inputMode) return;
+                // MOUSE 모드에서도 터치/클릭 이벤트는 동일하게 처리
+                if (state.inputMode !== 'TOUCH' && state.inputMode !== 'MOUSE') return;
+
                 const el = document.getElementById(`feedback-${btnIdx}`);
                 if (el) { el.classList.add('active'); setTimeout(() => el.classList.remove('active'), 150); }
-                if (state.isRoundActive) checkAnswer(btnIdx);
+
+                // 실제 입력 소스 전달 (state.inputMode에 따라 결정되지만, 여기서는 명시적으로 전달)
+                // 만약 터치 이벤트와 마우스 이벤트를 구분할 수 있다면 여기서 구분해서 전달
+                // 현재는 클릭/터치가 통합되어 있으므로 사용자가 선택한 모드를 신뢰하거나 'TOUCH'로 간주
+                const eventSource = state.inputMode || 'TOUCH';
+                if (state.isRoundActive) checkAnswer(btnIdx, 'VALID', eventSource);
             }
         }
 
-        function checkAnswer(btnIdx) {
+        /**
+         * 답변 검증 및 임상 분류 함수 (v1.1 - 임상 표준 RT 측정)
+         * 
+         * @param {number} btnIdx - 눌린 버튼 인덱스 (0-3)
+         * @param {string} validityType - 입력 타입 ('VALID' 또는 'TIMEOUT')
+         * @param {string} eventSource - 실제 입력 소스 ('TOUCH', 'MOUSE', 'GAMEPAD')
+         */
+        function checkAnswer(btnIdx, validityType, eventSource = 'UNKNOWN') {
+            // 1. 입력 제어 체크
+            if (!state.inputMode && validityType !== 'TIMEOUT') return;
+
+            // 2. TIMEOUT 처리 (Omission)
+            if (validityType === 'TIMEOUT') {
+                const maxTime = CONFIG.TIMING[state.ageGroup].MAX_TIME;
+
+                // PlayLabCore 4단계 분류 사용
+                const classification = PlayLabCore.Analysis.classifyResponse(
+                    maxTime,
+                    'TIMEOUT',
+                    { maxTime, elapsedTime: maxTime }
+                );
+
+                state.sessionData.omission++;
+                state.sessionData.errors++;
+                state.sessionData.total++;
+                state.sessionData.accuracies.push(false);
+
+                state.sessionData.blockData.push({
+                    round: state.round,
+                    raw_rt: maxTime,
+                    clinical_rt: maxTime,
+                    offset_applied: 0,
+                    selected_device: state.inputMode,
+                    actual_device: eventSource,
+                    is_consistent_input: (eventSource === state.inputMode),
+                    result: 'TIMEOUT',
+                    classification: classification.type,
+                    classification_label: classification.label,
+                    penalty: classification.penalty,
+                    target_color_idx: state.sequence[state.inputIndex],
+                    pressed_button_idx: null
+                });
+
+                playSound(SOUNDS.WRONG);
+                document.body.style.backgroundColor = "#fee2e2";
+                setTimeout(() => document.body.style.backgroundColor = "#f8fafc", 200);
+
+                state.isRoundActive = false;
+                setTimeout(nextRound, 500);
+                return;
+            }
+
+            // 3. 반응 시간 측정
             const now = performance.now();
-            const rt = now - state.sessionData.startTime;
+            const rawRT = now - state.sessionData.startTime;
+
+            // 4. PlayLabCore로 디바이스 오프셋 적용
+            const rtData = PlayLabCore.Analysis.applyDeviceOffset(rawRT, state.inputMode);
+
+            // 5. 입력 일관성 확인
+            const isConsistentInput = (eventSource === state.inputMode);
+
+            // 6. 타이밍 컨텍스트 설정
+            const maxTime = CONFIG.TIMING[state.ageGroup].MAX_TIME;
             const targetColorIdx = state.sequence[state.inputIndex];
-            const validity = filterData(rt);
-
-            if (validity === 'INVALID_TOO_FAST') return;
-
             const isCorrect = (btnIdx === targetColorIdx);
-            state.sessionData.blockData.push({ round: state.round, rt: rt, result: isCorrect ? 'CORRECT' : 'WRONG', validity: validity });
 
-            if (isCorrect) {
-                state.sessionData.rawRTs.push(rt);
-                if (validity === 'VALID') state.sessionData.validRTs.push(rt);
+            // 7. 4단계 임상 분류
+            const classification = PlayLabCore.Analysis.classifyResponse(
+                rtData.clinical_rt,
+                isCorrect ? 'CORRECT' : 'WRONG',
+                { maxTime, elapsedTime: rawRT }
+            );
+
+            // 8. 운동 지연 처리 로직
+            let finalResult = classification.type;
+            let scoreMultiplier = 1.0 - classification.penalty;
+            let shouldCountAsSuccess = classification.isValid && isCorrect;
+
+            if (classification.type === 'MOTOR_DELAY') {
+                if (CONFIG.FAIL_ON_MOTOR_DELAY) {
+                    // 운동 지연을 실패로 처리
+                    finalResult = 'FAILED_MOTOR_DELAY';
+                    scoreMultiplier = 0;
+                    shouldCountAsSuccess = false;
+                } else {
+                    // 운동 지연을 정답으로 인정하되 70% 점수
+                    finalResult = 'SUCCESS_DELAYED';
+                    scoreMultiplier = 0.7;
+                    shouldCountAsSuccess = true;
+                }
+            }
+
+            // 9. 데이터 저장
+            state.sessionData.blockData.push({
+                round: state.round,
+                rt: rtData.clinical_rt, // [버그 수정] PlayLabCore 통계 계산용 필드 추가
+                validity: (classification.type !== 'ANTICIPATORY' && classification.type !== 'OMISSION') ? 'VALID' : 'INVALID', // [버그 수정] 유효성 필드 추가
+                raw_rt: rtData.raw_rt,
+                clinical_rt: rtData.clinical_rt,
+                offset_applied: rtData.offset_applied,
+                selected_device: state.inputMode,
+                actual_device: eventSource,
+                is_consistent_input: isConsistentInput,
+                result: isCorrect ? 'CORRECT' : 'WRONG',
+                final_result: finalResult,
+                classification: classification.type,
+                classification_label: classification.label,
+                penalty: classification.penalty,
+                score_multiplier: scoreMultiplier,
+                target_color_idx: targetColorIdx,
+                pressed_button_idx: btnIdx
+            });
+
+            // 10. Anticipatory (예측 오류) 처리
+            if (classification.type === 'ANTICIPATORY') {
+                state.sessionData.anticipatory++;
+                state.sessionData.errors++;
+                state.sessionData.total++;
+                state.sessionData.accuracies.push(false);
+
+                playSound(SOUNDS.WRONG);
+                state.isRoundActive = false;
+                setTimeout(nextRound, 500);
+                return;
+            }
+
+            // 11. 정답 처리
+            if (shouldCountAsSuccess) {
+                state.sessionData.rawRTs.push(rtData.raw_rt);
+                state.sessionData.validRTs.push(rtData.clinical_rt);
                 state.sessionData.accuracies.push(true);
+                state.sessionData.correct++;
+                state.sessionData.rtSum += rtData.clinical_rt;
+                state.sessionData.total++;
 
                 playSound(SOUNDS.CORRECT);
+
                 const blocks = document.querySelectorAll('.sequence-block');
-                blocks[state.inputIndex].classList.remove('lit');
-                blocks[state.inputIndex].classList.add('done');
+                if (blocks[state.inputIndex]) {
+                    blocks[state.inputIndex].classList.remove('lit');
+                    blocks[state.inputIndex].classList.add('done');
+                }
                 state.inputIndex++;
+
+                // 다음 단계를 위한 타이머 리셋
+                if (state.problemTimer) clearTimeout(state.problemTimer);
+                state.problemTimer = setTimeout(() => { checkAnswer(null, 'TIMEOUT', 'TIMEOUT'); }, maxTime);
                 state.sessionData.startTime = performance.now();
 
+                // 시퀀스 완료 확인
                 if (state.inputIndex >= state.sequence.length) {
+                    if (state.problemTimer) clearTimeout(state.problemTimer);
                     state.isRoundActive = false;
                     setTimeout(nextRound, 500);
                 }
             } else {
+                // 12. 오답 처리 (Commission)
+                if (state.problemTimer) clearTimeout(state.problemTimer);
+
+                state.sessionData.commission++;
                 state.sessionData.errors++;
+                state.sessionData.total++;
                 state.sessionData.accuracies.push(false);
+
                 playSound(SOUNDS.WRONG);
                 document.body.style.backgroundColor = "#fee2e2";
                 setTimeout(() => document.body.style.backgroundColor = "#f8fafc", 200);
+
+                state.isRoundActive = false;
+                setTimeout(nextRound, 500);
             }
         }
 
@@ -1294,21 +1631,7 @@
                 clinicalHTML += `</div>`;
             }
 
-            // 뇌 영역 결함 및 처방 게임 렌더링
-            if (brainDeficits.length > 0) {
-                clinicalHTML += `<div class="mb-6"><h5 class="font-bold text-slate-800 mb-3">⚕️ 처방 게임 추천</h5>`;
-                brainDeficits.forEach(deficit => {
-                    clinicalHTML += `
-                        <div class="mb-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                            <h6 class="font-bold text-sm text-amber-900">${deficit.regionKo} (${deficit.region})</h6>
-                            <p class="text-xs text-slate-700 mt-1"><strong>${deficit.function}</strong></p>
-                            <p class="text-xs text-slate-600 mt-1">결함: ${deficit.deficit}</p>
-                            <p class="text-xs text-indigo-700 mt-2"><strong>✅ 처방:</strong> ${deficit.prescription.join(', ')}</p>
-                        </div>
-                    `;
-                });
-                clinicalHTML += `</div>`;
-            }
+
 
             // Red Flag 경고 렌더링
             if (redFlags.length > 0) {
@@ -1334,8 +1657,8 @@
             metricsUsed.forEach(key => {
                 if (metricDescriptions[key]) {
                     descriptionsHTML += `
-                        <div class="text-[9px] text-slate-600 leading-relaxed mb-1">
-                            <strong class="text-slate-800">${metricDescriptions[key].split(' - ')[0]}:</strong> 
+                        <div class="text-sm text-slate-700 leading-relaxed mb-2">
+                            <strong class="text-slate-900 font-bold">${metricDescriptions[key].split(' - ')[0]}:</strong> 
                             ${metricDescriptions[key].split(' - ')[1]}
                         </div>
                     `;
@@ -1343,12 +1666,55 @@
             });
             document.getElementById('metric-descriptions').innerHTML = descriptionsHTML;
 
+            // 9. 임상 데이터 통계 집계
+            const classifications = {
+                anticipatory: state.sessionData.blockData.filter(d => d.classification === 'ANTICIPATORY').length,
+                omission: state.sessionData.blockData.filter(d => d.classification === 'OMISSION').length,
+                commission: state.sessionData.blockData.filter(d => d.classification === 'COMMISSION').length,
+                motor_delay: state.sessionData.blockData.filter(d => d.classification === 'MOTOR_DELAY').length,
+                success: state.sessionData.blockData.filter(d => d.classification === 'SUCCESS').length
+            };
+
+            const deviceInfo = {
+                selected_device: state.inputMode,
+                consistency_rate: Math.round((state.sessionData.blockData.filter(d => d.is_consistent_input).length / state.sessionData.blockData.length) * 100) || 0
+            };
+
+            // 10. 서버로 전송할 데이터 구성
+            const sessionDataPayload = {
+                gameId: '01-000',
+                level: state.level,
+                score: totalScore,
+                duration: Math.floor((performance.now() - state.sessionData.startTime) / 1000),
+                metadata: {
+                    metrics: metrics,
+                    age_group: state.ageGroup,
+                    total_rounds: CONFIG.TOTAL_ROUNDS,
+                    device_info: deviceInfo,
+                    classifications: classifications,
+                    input_offset: PlayLabCore.Analysis.applyDeviceOffset(0, state.inputMode).offset_applied,
+                    clinical_feedback: expertScript,
+                    brain_analysis: brainAnalysis,
+                    easy_feedback: easyFeedback,
+                    raw_block_data: state.sessionData.blockData
+                }
+            };
+
+            // 11. Supabase 저장 (PlayLabCore.History 사용)
+            PlayLabCore.History.saveGameHistory(sessionDataPayload).then(result => {
+                if (result.success) console.log("Data saved successfully");
+                else console.error("Data save failed", result.error);
+            });
+
+            // [UX 개선] 차트 데이터 저장 (탭 전환 시 애니메이션 재생을 위해)
+            state.lastMetrics = metrics;
+
+            // ===== 차트 렌더링 =====
             // 기본적으로 간단 모드 표시
             toggleReportMode('EASY');
             updateScreenVisibility();
 
-            // 9각 레이더 차트 렌더링
-            renderChart(metrics.chartData);
+            // renderChart는 toggleReportMode('CLINICAL') 호출 시 실행됨
         }
 
 
@@ -1390,9 +1756,18 @@
                     }]
                 },
                 options: {
+                    responsive: true,
+                    animation: {
+                        duration: 3000, // 더 천천히 펼쳐지도록 시간 증가
+                        easing: 'easeOutElastic', // 팅~ 하고 펼쳐지는 탄성 효과
+                        delay: 300 // 모달 뜨고 나서 시작되도록 딜레이
+                    },
                     elements: { line: { borderWidth: 2 } },
                     scales: {
                         r: {
+                            min: 0,
+                            max: 100,
+                            beginAtZero: true,
                             angleLines: { display: true, color: 'rgba(0, 0, 0, 0.1)' },
                             grid: { color: 'rgba(0, 0, 0, 0.05)' },
                             suggestedMin: 0,
@@ -1402,10 +1777,6 @@
                                 display: true,
                                 font: { size: 10 },
                                 color: '#64748b'
-                            },
-                            pointLabels: {
-                                font: { size: 11, weight: '500' },
-                                color: '#1e293b'
                             }
                         }
                     },
@@ -1464,7 +1835,7 @@
             pollGamepad();
             if (state.screen === 'GAME' && state.isRoundActive) {
                 const elapsed = Math.floor(performance.now() - state.sessionData.startTime);
-                els.game.timer.innerText = `${elapsed}ms`;
+                els.game.timer.innerText = `${elapsed} ms`;
             }
             requestAnimationFrame(gameLoop);
         }
@@ -1473,6 +1844,9 @@
             if (state.gamepadIndex === null) return;
             const gamepad = navigator.getGamepads()[state.gamepadIndex];
             if (!gamepad) return;
+
+            // Strict Input Check for Gamepad
+            if (state.screen === 'GAME' && state.inputMode !== 'GAMEPAD') return;
 
             const axisH = gamepad.axes[0];
             const axisV = gamepad.axes[1];
@@ -1519,8 +1893,27 @@
                 return;
             }
 
-            // 2. SCREEN SPECIFIC LOGIC
-            if (state.screen === 'MENU') {
+            // 2. GAME SCREEN INPUT
+            if (state.screen === 'GAME' && state.isRoundActive) {
+                // Prevent duplicate inputs too fast
+                if (now - state.lastNavTime < 100) return; // Debounce
+
+                // Map DPAD to Colors if needed or just use Color Buttons
+                // In this game: DPAD is NOT used for answers, only colored buttons.
+                // But let's check CONFIG.BUTTONS
+                let pressedColorIdx = -1;
+                if (btnIdx === CONFIG.BUTTONS.RED) pressedColorIdx = 0;
+                else if (btnIdx === CONFIG.BUTTONS.YELLOW) pressedColorIdx = 1;
+                else if (btnIdx === CONFIG.BUTTONS.GREEN) pressedColorIdx = 2;
+                else if (btnIdx === CONFIG.BUTTONS.BLUE) pressedColorIdx = 3;
+
+                if (pressedColorIdx !== -1) {
+                    const el = document.getElementById(`feedback - ${pressedColorIdx}`);
+                    if (el) { el.classList.add('active'); setTimeout(() => el.classList.remove('active'), 150); }
+                    checkAnswer(pressedColorIdx, 'VALID', 'GAMEPAD'); // eventSource: GAMEPAD
+                    state.lastNavTime = now;
+                }
+            } else if (state.screen === 'MENU') {
                 if (now - state.lastNavTime < 150) return;
 
                 // NAVIGATION
