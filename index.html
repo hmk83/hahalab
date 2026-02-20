@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HAHA LAB - Child Development Center Dashboard (Supabase)</title>
+    <link rel="icon" type="image/svg+xml" href="images/hahalab-P.svg">
 
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap"
@@ -22,6 +23,9 @@
 
     <!-- Supabase JS Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Daum Postcode (Address Search) -->
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 
     <!-- Chart.js for Growth Reports -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -97,6 +101,16 @@
                 return o.map((i) => keysToSnake(i));
             }
             return o;
+        };
+
+        const formatPhoneNumber = (str) => {
+            if (!str) return '';
+            const cleaned = ('' + str).replace(/\D/g, '');
+            const match = cleaned.match(/^(\d{3})(\d{3,4})(\d{4})$/);
+            if (match) {
+                return `${match[1]}-${match[2]}-${match[3]}`;
+            }
+            return cleaned;
         };
 
         /**
@@ -239,12 +253,9 @@
             </div>
         );
 
-        // PLAY LAB Categories - Loaded from external JSON
-        let PLAY_CATEGORIES = [];
-        fetch('data/play-categories.json')
-            .then(res => res.json())
-            .then(data => { PLAY_CATEGORIES = data.categories; })
-            .catch(err => console.error('Failed to load play categories:', err));
+        // [MODIFIED] Global Variables Replacement
+        // let PLAY_CATEGORIES = []; -> Moved to App State
+
 
         /**
          * MAIN APP COMPONENT
@@ -288,15 +299,59 @@
                 if (stored) {
                     try {
                         const parsedUser = JSON.parse(stored);
-                        setUser(parsedUser);
-                        setView('dashboard');
 
-                        // [NEW] Update last_seen on page load
-                        supabase.from('teachers').update({ last_seen: new Date().toISOString() }).eq('id', parsedUser.id);
+                        // [NEW] Verify current status from DB immediately
+                        // DB에서 현재 상태를 다시 가져와 로컬 캐시와 비교
+                        supabase.from('teachers').select('*').eq('id', parsedUser.id).maybeSingle()
+                            .then(({ data, error }) => {
+                                if (error || !data) {
+                                    localStorage.removeItem('haha_lab_session');
+                                    setCurrentSession(null);
+                                    setUser(null);
+                                    setView('intro');
+                                    return;
+                                }
+
+                                if (data.status === 'suspended' || data.status === 'paused' || data.status === 'deleted') {
+                                    alert('관리자에 의해 계정이 정지되거나 일시 중지되었습니다.');
+                                    localStorage.removeItem('haha_lab_session');
+                                    setCurrentSession(null);
+                                    setUser(null);
+                                    setShowProfileModal(false);
+                                    setView('intro');
+                                    return;
+                                }
+
+                                // Update session logic & data
+                                const camelUser = keysToCamel(data);
+                                setUser(camelUser);
+                                localStorage.setItem('haha_lab_session', JSON.stringify(camelUser));
+
+                                // [NEW] Restore Active Session if exists
+                                const savedCurrentSession = localStorage.getItem('haha_lab_current_session');
+                                if (savedCurrentSession) {
+                                    try {
+                                        const parsedSession = JSON.parse(savedCurrentSession);
+                                        setCurrentSession(parsedSession);
+                                        setView('session');
+                                    } catch (e) {
+                                        setView('dashboard');
+                                    }
+                                } else {
+                                    setView('dashboard');
+                                }
+
+                                // [NEW] Update last_seen on page load
+                                supabase.from('teachers').update({ last_seen: new Date().toISOString() }).eq('id', parsedUser.id);
+                            });
+
                     } catch (e) {
                         console.error("Session Parse Error", e);
                         localStorage.removeItem('haha_lab_session');
+                        setView('intro');
                     }
+                } else {
+                    setView('intro');
                 }
 
                 // 2. Real-time Subscription for reduced latency security
@@ -306,9 +361,9 @@
                         // Check if update is for current user
                         setUser(currentUser => {
                             if (currentUser && payload.new.id === currentUser.id) {
-                                // 계정 정지/삭제 처리
-                                if (payload.new.status === 'suspended' || payload.new.status === 'deleted') {
-                                    alert('관리자에 의해 계정이 정지되었습니다.');
+                                // 계정 정지/일시중지/삭제 처리 실시간 감지
+                                if (payload.new.status === 'suspended' || payload.new.status === 'paused' || payload.new.status === 'deleted') {
+                                    alert('관리자에 의해 계정이 정지되거나 일시 중지되었습니다.');
                                     // Logout immediately
                                     localStorage.removeItem('haha_lab_session');
                                     setCurrentSession(null);
@@ -317,7 +372,7 @@
                                     return null;
                                 }
 
-                                // 다른 모든 필드 변경 실시간 반영 (grade, plan 등)
+                                // 다른 모든 필드 변경 실시간 반영 (grade, plan, status(request/normal) 등)
                                 const updatedUser = keysToCamel(payload.new);
                                 localStorage.setItem('haha_lab_session', JSON.stringify(updatedUser));
                                 console.log('✅ 선생님 정보 실시간 업데이트:', updatedUser);
@@ -346,6 +401,162 @@
                     clearInterval(heartbeatInterval);
                 };
             }, []);
+
+            useEffect(() => {
+                // 1. Password Recovery Check
+                const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+                    if (event === 'PASSWORD_RECOVERY') {
+                        setView('reset-password');
+                    }
+                });
+
+                // 2. Restore Session
+                const stored = localStorage.getItem('haha_lab_session');
+                if (stored) {
+                    try {
+                        const parsed = JSON.parse(stored);
+                        if (parsed && parsed.id) {
+                            setUser(parsed);
+                            setView('dashboard');
+                        }
+                    } catch (e) {
+                        console.error('Session parse error:', e);
+                        localStorage.removeItem('haha_lab_session');
+                    }
+                }
+
+                return () => {
+                    authListener.subscription.unsubscribe();
+                };
+            }, []);
+
+
+            // [SECURITY v1.0.0] Absolute Session Timeout (12 Hours)
+            useEffect(() => {
+                if (!user) return;
+
+                const CHECK_INTERVAL = 60 * 1000; // 1 minute
+                const MAX_SESSION_TIME = 3 * 60 * 60 * 1000; // 3 Hours [Updated 2026-02-15]
+                // const MAX_SESSION_TIME = 10000; // TEST: 10 seconds
+
+                const checkSessionValidity = () => {
+                    const stored = localStorage.getItem('haha_lab_session');
+                    if (!stored) return;
+
+                    let session = JSON.parse(stored);
+                    const now = Date.now();
+
+                    // [MIGRATION] If no loginAt, set it to now to start the 12h clock
+                    if (!session.loginAt) {
+                        session.loginAt = new Date().toISOString();
+                        localStorage.setItem('haha_lab_session', JSON.stringify(session));
+                    }
+
+                    const loginTime = new Date(session.loginAt).getTime();
+                    if (now - loginTime > MAX_SESSION_TIME) {
+                        console.warn(`[Security] Session expired after 12 hours.`);
+                        alert('로그인 유효 시간(12시간)이 만료되었습니다. 다시 로그인해주세요.');
+
+                        localStorage.removeItem('haha_lab_session');
+                        localStorage.removeItem('haha_lab_current_session');
+                        setUser(null);
+                        setCurrentSession(null);
+                        setView('intro');
+                    }
+                };
+
+                const interval = setInterval(checkSessionValidity, CHECK_INTERVAL);
+
+                // Initial Check
+                checkSessionValidity();
+
+                return () => clearInterval(interval);
+            }, [user]);
+
+            // [NEW] States for App-wide Data
+            const [playCategories, setPlayCategories] = useState([]);
+            const [notices, setNotices] = useState([]);
+            const [alertedSchedules, setAlertedSchedules] = useState(new Set());
+
+            // Load Global Data (Categories, Notices)
+            useEffect(() => {
+                const fetchGlobalData = async () => {
+                    // 1. Play Categories
+                    const { data: catData, error: catError } = await supabase.from('play_categories').select('*').order('id');
+
+                    if (catError) {
+                        console.error('[App] PlayCategories Load Error:', catError);
+                    }
+
+                    if (catData && catData.length > 0) {
+                        setPlayCategories(keysToCamel(catData));
+                    } else {
+                        // Fallback to JSON
+                        fetch('data/play-categories.json')
+                            .then(res => res.json())
+                            .then(data => { setPlayCategories(data.categories || []); })
+                            .catch(err => console.error('Failed to load play categories:', err));
+                    }
+
+                    // 2. Notices
+                    const { data: noticeData } = await supabase.from('notices').select('*').order('created_at', { ascending: false });
+                    if (noticeData) setNotices(keysToCamel(noticeData));
+                };
+                fetchGlobalData();
+            }, []);
+
+            // [NEW] Schedule Alerts System (Every Minute)
+            useEffect(() => {
+                if (!schedules || schedules.length === 0) return;
+
+                const checkAlerts = () => {
+                    const now = new Date();
+
+                    schedules.forEach(s => {
+                        if (s.status === 'completed' || s.status === 'canceled') return;
+
+                        // 1. Start Alert (5 min before)
+                        const startDateTime = new Date(`${s.date}T${s.startTime}`);
+                        const diffStart = (startDateTime - now) / 60000; // minutes
+
+                        if (diffStart > 0 && diffStart <= 5 && !alertedSchedules.has(s.id + '_start')) {
+                            showToast(`[일정 알림] ${s.clientName}님 수업 시작 5분 전입니다.`);
+                            setAlertedSchedules(prev => new Set(prev).add(s.id + '_start'));
+                        }
+
+                        // 2. End Alert (5 min after & not completed)
+                        const endDateTime = new Date(`${s.date}T${s.endTime}`);
+                        const diffEnd = (now - endDateTime) / 60000;
+
+                        if (diffEnd >= 5 && diffEnd < 60 && s.status === 'in-progress' && !alertedSchedules.has(s.id + '_end')) {
+                            showToast(`[일정 알림] ${s.clientName}님 수업 종료 5분이 지났습니다. 완료 처리해주세요.`);
+                            setAlertedSchedules(prev => new Set(prev).add(s.id + '_end'));
+                        }
+                    });
+                };
+
+                const interval = setInterval(checkAlerts, 60000); // Check every minute
+                checkAlerts(); // Initial check
+
+                return () => clearInterval(interval);
+            }, [schedules, alertedSchedules]);
+
+            // [NEW] Current Session Persistence & Refresh Protection
+            useEffect(() => {
+                if (currentSession) {
+                    localStorage.setItem('haha_lab_current_session', JSON.stringify(currentSession));
+
+                    const handleBeforeUnload = (e) => {
+                        e.preventDefault();
+                        e.returnValue = ''; // Chrome requires returnValue to be set
+                        return '';
+                    };
+                    window.addEventListener('beforeunload', handleBeforeUnload);
+                    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+                } else {
+                    localStorage.removeItem('haha_lab_current_session');
+                }
+            }, [currentSession]);
 
             // [REFACTOR v1.0.5] 내담자 수 제한 체크 (max_client_limit 기반)
             const [showOverLimitModal, setShowOverLimitModal] = useState(null);
@@ -387,17 +598,8 @@
                         // max_client_limit 기반 제한 수 (기본값 40)
                         const maxLimit = teacher.max_client_limit || 40;
 
-                        console.log(`🔍 내담자 수 체크 - 현재: ${actualCount}명 / 제한: ${maxLimit}명`);
-
-                        // 초과 여부 확인
-                        if (actualCount > maxLimit) {
-                            console.warn(`⚠️ 내담자 수 초과 감지: ${actualCount} > ${maxLimit}`);
-                            setShowOverLimitModal({
-                                show: true,
-                                actualCount,
-                                maxLimit
-                            });
-                        }
+                        // [REFACTOR v1.0.6] Removed automatic modal trigger.
+                        // Limit check is now enforced on "Add Client" action.
 
                         // localStorage 세션 업데이트
                         const updatedSession = {
@@ -575,6 +777,18 @@
                     }
                 }
                 setCurrentSession(null);
+
+                // [MODIFIED] Auto-redirect to History Tab if client exists
+                console.log('[App] Session Ended. Finding client for redirect:', currentSession.clientId);
+                // Safe comparison using String()
+                const client = clients.find(c => String(c.id) === String(currentSession.clientId));
+
+                if (client) {
+                    console.log('[App] Redirecting to history for:', client.name);
+                    setInitialDashboardView({ type: 'detail', client: client, initialTab: 'history' });
+                } else {
+                    console.warn('[App] Client not found for redirect. Clients list:', clients.map(c => c.id));
+                }
                 setView('dashboard');
                 setShowExitConfirm(false);
             };
@@ -614,6 +828,7 @@
                 showToast(`안녕하세요 ${loggedInUser.name} 선생님. 오늘도 좋은 하루보내세요.`);
             };
 
+            if (view === 'reset-password') return <ResetPasswordPage />;
             if (view === 'intro') return <IntroView onLogin={handleLoginSuccess} />;
 
             return (
@@ -634,9 +849,15 @@
                         }}
                         onNoticeClick={() => setView('notice')}
                         onProfileClick={() => setShowProfileModal(true)}
+                        notices={notices} // [NEW] Pass notices for badge
                     />
 
-                    <div className="flex-1 flex overflow-hidden relative bg-white">
+                    <div className="flex-1 flex overflow-hidden relative bg-white flex-col">
+                        {user?.status === 'request' && (
+                            <div className="bg-orange-500 text-white text-xs font-bold text-center py-2 px-4 shadow-md z-10 w-full shrink-0">
+                                ⚠️ 관리자 승인 대기 중입니다. (신규 등록 및 수업/상담 관련 기능이 제한됩니다)
+                            </div>
+                        )}
                         {view === 'dashboard' ? (
                             <Dashboard
                                 key={dashboardKey}
@@ -686,6 +907,7 @@
                                 <SessionMode
                                     session={currentSession}
                                     onExit={handleSessionEndRequest}
+                                    categories={playCategories} // [NEW] Pass categories
                                 />
                             )
                         ) : view === 'notice' ? (
@@ -733,9 +955,7 @@
                                             </div>
                                         </div>
                                         <p className="text-sm text-gray-700 mb-4">
-                                            ⚠️ 초과한 내담자를 <span className="font-bold">정지 처리</span>하거나 관리자에게 문의해주세요.
-                                            <br />
-                                            관리자 문의: <span className="font-bold">010-8416-3323</span> (카톡/문자)
+                                            ⚠️ 초과한 내담자를 <span className="font-bold">정지 처리</span>해야 새로운 내담자를 등록할 수 있습니다.
                                         </p>
                                     </div>
                                 </div>
@@ -811,10 +1031,170 @@
         }
 
         // 1. INTRO & LOGIN INTEGRATED (Modified)
+        function ForgotPasswordModal({ onClose, showToast }) {
+            const [email, setEmail] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async () => {
+                if (!email) {
+                    showToast('이메일을 입력해주세요.');
+                    return;
+                }
+                setLoading(true);
+                try {
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: window.location.origin + window.location.pathname,
+                    });
+                    if (error) throw error;
+                    showToast('비밀번호 재설정 이메일을 보냈습니다. 이메일을 확인해주세요.');
+                    onClose();
+                } catch (e) {
+                    console.error(e);
+                    showToast('이메일 전송 실패: ' + e.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl m-4">
+                        <h3 className="text-2xl font-black text-slate-900 mb-2">비밀번호 찾기</h3>
+                        <p className="text-slate-500 text-sm mb-6">가입하신 이메일 주소를 입력하시면<br />비밀번호 재설정 링크를 보내드립니다.</p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">이메일</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    placeholder="example@hahalab.com"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FDE047] transition"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleSubmit}
+                                disabled={loading}
+                                className="w-full bg-slate-900 text-[#FDE047] font-black py-3.5 rounded-xl hover:bg-slate-800 transition shadow-lg transform active:scale-95 disabled:opacity-50"
+                            >
+                                {loading ? '전송 중...' : '재설정 링크 보내기'}
+                            </button>
+
+                            <button
+                                onClick={onClose}
+                                className="w-full py-3 text-slate-500 font-bold hover:text-slate-900 transition"
+                            >
+                                취소
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ResetPasswordPage() {
+            const [newPassword, setNewPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [message, setMessage] = useState(null);
+
+            const handleUpdate = async () => {
+                if (!newPassword || !confirmPassword) {
+                    setMessage({ type: 'error', text: '비밀번호를 모두 입력해주세요.' });
+                    return;
+                }
+                if (newPassword !== confirmPassword) {
+                    setMessage({ type: 'error', text: '비밀번호가 일치하지 않습니다.' });
+                    return;
+                }
+                setLoading(true);
+                try {
+                    const { error } = await supabase.auth.updateUser({ password: newPassword });
+                    if (error) throw error;
+                    setMessage({ type: 'success', text: '비밀번호가 성공적으로 변경되었습니다.' });
+
+                    // Also update the teacher record password (since we are syncing auth with teachers table for legacy reasons, though auth is primary now)
+                    // Note: In a real app we shouldn't store passwords in plain text in 'teachers' table. 
+                    // Assuming we might need to sync if the app relies on 'teachers' table password col for checking.
+                    // But Auth is handled by Supabase Auth now for reset. 
+                    // Let's just update Auth.
+
+                    // [NEW] Update teachers table password & password_changed_at
+                    const { data: userData, error: userError } = await supabase.auth.getUser();
+                    if (!userError && userData?.user?.email) {
+                        const nowIso = new Date().toISOString();
+                        await supabase.from('teachers').update({
+                            password: newPassword,
+                            password_changed_at: nowIso
+                        }).eq('email', userData.user.email);
+                    }
+
+                    setTimeout(() => {
+                        supabase.auth.signOut();
+                        window.location.hash = '';
+                        window.location.reload();
+                    }, 2000);
+                } catch (e) {
+                    setMessage({ type: 'error', text: '변경 실패: ' + e.message });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="w-full h-screen bg-[#FDE047] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 text-center animate-fade-in relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-slate-900"></div>
+                        <h2 className="text-2xl font-black text-slate-900 mb-2">새 비밀번호 설정</h2>
+                        <p className="text-slate-500 text-sm mb-8">새로운 비밀번호를 입력해주세요.</p>
+
+                        <div className="space-y-4 text-left">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">새 비밀번호</label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FDE047] transition"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">새 비밀번호 확인</label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FDE047] transition"
+                                />
+                            </div>
+
+                            {message && (
+                                <div className={`p-3 rounded-xl text-sm font-bold ${message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {message.text}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleUpdate}
+                                disabled={loading}
+                                className="w-full bg-slate-900 text-[#FDE047] font-black py-3.5 rounded-xl hover:bg-slate-800 transition shadow-lg transform active:scale-95 disabled:opacity-50 mt-4"
+                            >
+                                {loading ? '변경 중...' : '비밀번호 변경'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+
         function IntroView({ onLogin }) {
             const [progress, setProgress] = useState(0);
             const [showLogin, setShowLogin] = useState(false);
             const [showSignUp, setShowSignUp] = useState(false);
+            const [showForgotPassword, setShowForgotPassword] = useState(false); // [NEW]
             const [toast, setToast] = useState(null);
 
             const showToast = (msg) => {
@@ -866,6 +1246,7 @@
                                 desc: "관리자에 문의하세요.\n010-8416-3323 카톡 또는 문자로 문의 부탁드립니다."
                             });
                         } else {
+                            // Remember ID Logic (including 'request' and 'normal' status)
                             // Remember ID Logic
                             if (remember) {
                                 localStorage.setItem('haha_remember_id', id);
@@ -886,10 +1267,23 @@
             if (showSignUp) {
                 return <SignUpView onCancel={() => setShowSignUp(false)} showToast={showToast} />;
             }
+            if (showForgotPassword) {
+                return (
+                    // Re-using Intro background but with Modal on top
+                    <div className="w-full h-screen bg-[#FDE047] flex flex-col items-center justify-center relative">
+                        <IntroView onLogin={onLogin} /> {/* Background */}
+                        <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} showToast={showToast} />
+                    </div>
+                );
+            }
 
             return (
                 <div className="w-full h-screen bg-[#FDE047] flex flex-col items-center justify-center animate-fade-in relative transition-all duration-500">
                     {toast && <ToastNotification message={toast} />}
+
+                    {/* [NEW] Render Modal directly here if state is true, cleaner than recursive render */}
+                    {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} showToast={showToast} />}
+
                     <div className={`flex flex-col items-center transition-all duration-500 ${showLogin ? 'mb-8' : 'mb-12'}`}>
                         <div className="text-5xl md:text-6xl font-black mb-4 tracking-tighter animate-bounce-custom cursor-default select-none">HAHA LAB</div>
                         <p className="text-lg md:text-xl font-medium animate-pulse text-center px-4 cursor-default select-none">즐거운 배움이 시작되는 곳</p>
@@ -954,9 +1348,12 @@
                                             {loading ? '로그인 중...' : '로그인'}
                                         </button>
 
-                                        <div className="pt-2 text-center">
-                                            <button onClick={() => setShowSignUp(true)} className="text-sm font-bold text-slate-700 hover:text-slate-900 hover:underline underline-offset-4 transition">
+                                        <div className="pt-2 text-center space-y-2">
+                                            <button onClick={() => setShowSignUp(true)} className="text-sm font-bold text-slate-700 hover:text-slate-900 hover:underline underline-offset-4 transition block w-full">
                                                 회원가입
+                                            </button>
+                                            <button onClick={() => setShowForgotPassword(true)} className="text-xs font-bold text-slate-500 hover:text-slate-800 transition block w-full">
+                                                비밀번호를 잊으셨나요?
                                             </button>
                                         </div>
                                     </div>
@@ -1095,9 +1492,9 @@
                                 <input
                                     type="text"
                                     value={form.teacherId}
-                                    onChange={e => handleChange('teacherId', e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                    onChange={e => handleChange('teacherId', e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
                                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:outline-none focus:border-[#FDE047] focus:ring-4 focus:ring-yellow-100 transition"
-                                    placeholder="영문, 숫자만 입력"
+                                    placeholder="영문, 숫자, _ 허용"
                                 />
                             </div>
                             <div>
@@ -1116,6 +1513,7 @@
                                 <label className="block text-sm font-bold text-slate-600 mb-1.5 ml-1">이메일 <span className="text-red-500">*</span></label>
                                 <input
                                     type="email"
+                                    required
                                     value={form.email}
                                     onChange={e => handleChange('email', e.target.value)}
                                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:outline-none focus:border-[#FDE047] focus:ring-4 focus:ring-yellow-100 transition"
@@ -1153,7 +1551,7 @@
         }
 
         // 3. GNB (with real-time session timer)
-        function GNB({ user, isSession, sessionData, onExitSession, onOpenSettings, onLogoClick, onNoticeClick, onProfileClick }) {
+        function GNB({ user, isSession, sessionData, onExitSession, onOpenSettings, onLogoClick, onNoticeClick, onProfileClick, notices }) {
             const [elapsedTime, setElapsedTime] = useState(0);
 
             useEffect(() => {
@@ -1210,9 +1608,19 @@
                                     <span className="font-bold text-xs md:text-sm whitespace-nowrap">{user?.name} <span className="hidden md:inline">선생님</span></span>
                                 </div>
                                 <button onClick={onOpenSettings} className="p-2 hover:bg-white/20 rounded-full transition"><Settings size={20} /></button>
-                                <button onClick={onNoticeClick} className="p-2 hover:bg-white/20 rounded-full transition relative">
+                                <button onClick={() => {
+                                    onNoticeClick();
+                                    localStorage.setItem('haha_last_notice_check', new Date().toISOString());
+                                }} className="p-2 hover:bg-white/20 rounded-full transition relative">
                                     <Megaphone size={20} />
-                                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-50 rounded-full border border-[#FDE047]"></span>
+                                    {/* [MODIFIED] Badge Logic */}
+                                    {(() => {
+                                        if (!notices || notices.length === 0) return null;
+                                        const lastCheck = localStorage.getItem('haha_last_notice_check');
+                                        const latestNotice = notices[0].createdAt ? new Date(notices[0].createdAt).getTime() : 0;
+                                        const hasNew = !lastCheck || latestNotice > new Date(lastCheck).getTime();
+                                        return hasNew ? <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-[#FDE047]"></span> : null;
+                                    })()}
                                 </button>
                             </>
                         }
@@ -1253,16 +1661,16 @@
                             </div>
                             <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
                                 <span className="text-slate-500 font-bold">연락처</span>
-                                <span className="font-bold">{user.contact}</span>
+                                <span className="font-bold">{formatPhoneNumber(user.contact)}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
-                                <span className="text-slate-500 font-bold">이메일</span>
-                                <span className="font-bold">{user.email}</span>
-                            </div>
-                            {/* [REFACTOR v1.0.5] 요금제 표시 제거 */}
-                            <div className="flex justify-center mt-6">
-                                <button onClick={onLogout} className="text-xs px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition font-bold">로그아웃</button>
-                            </div>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-slate-100 pb-3">
+                            <span className="text-slate-500 font-bold">이메일</span>
+                            <span className="font-bold">{user.email}</span>
+                        </div>
+                        {/* [REFACTOR v1.0.5] 요금제 표시 제거 */}
+                        <div className="flex justify-center mt-6">
+                            <button onClick={onLogout} className="text-xs px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition font-bold">로그아웃</button>
                         </div>
                     </div>
                 </div>
@@ -1352,10 +1760,10 @@
                                 </div>
 
                                 <div
-                                    className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedId === notice.id ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}
+                                    className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedId === notice.id ? 'max-h-[5000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}
                                 >
                                     <div
-                                        className="pt-4 border-t border-slate-100 text-slate-600 text-sm leading-relaxed whitespace-pre-wrap"
+                                        className={`pt-4 border-t border-slate-100 text-slate-600 text-sm leading-relaxed whitespace-normal [&_img]:max-w-full [&_img]:mx-auto [&_img]:h-auto [&_iframe]:max-w-full [&_iframe]:mx-auto [&_iframe]:aspect-video ${notice.content.includes('<') ? 'text-center container-html' : 'text-left'}`}
                                         dangerouslySetInnerHTML={{ __html: notice.content }}
                                     />
                                 </div>
@@ -1531,7 +1939,7 @@
         }
 
         // 5. SESSION MODE (PLAY LAB - Supabase Connected)
-        function SessionMode({ session, onExit }) {
+        function SessionMode({ session, onExit, categories = [] }) {
             const [activeCategory, setActiveCategory] = useState(null);
             const [contents, setContents] = useState([]);
             const [searchTerm, setSearchTerm] = useState('');
@@ -1578,7 +1986,8 @@
             };
 
             if (activeContent) {
-                const category = PLAY_CATEGORIES.find(c => c.id === activeContent.catId);
+                const safeCategories = categories || [];
+                const category = safeCategories.find(c => c.id === activeContent.catId);
                 return (
                     <div className="flex flex-col w-full h-full bg-slate-50 relative animate-fade-in">
                         {/* Sub-Header (Learning Bar) */}
@@ -1650,7 +2059,7 @@
 
                             <div className="hidden md:block h-px bg-slate-200 my-2 mx-2"></div>
 
-                            {PLAY_CATEGORIES.map(cat => (
+                            {(categories || []).map(cat => (
                                 <button
                                     key={cat.id}
                                     onClick={() => setActiveCategory(cat)}
@@ -1721,14 +2130,14 @@
                                         onClick={() => setActiveContent(content)}
                                         className="bg-white rounded-2xl shadow hover:shadow-xl transition-all cursor-pointer overflow-hidden group border border-slate-100 hover:border-[#FDE047] flex flex-col"
                                     >
-                                        <div className="aspect-video bg-slate-100 relative overflow-hidden">
+                                        <div className="aspect-[2/1] bg-slate-100 relative overflow-hidden">
                                             {content.thumbnail ? (
                                                 <img src={content.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt={content.title} />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-slate-300 font-black text-2xl">NO IMG</div>
                                             )}
                                             <span className="absolute top-3 left-3 bg-[#FFFBEB] text-slate-900 text-[10px] font-bold px-2 py-1 rounded border border-[#FDE047]">
-                                                {PLAY_CATEGORIES.find(c => c.id === content.catId)?.title}
+                                                {(categories || []).find(c => c.id === content.catId)?.title}
                                             </span>
                                         </div>
                                         <div className="p-4 flex-1 flex flex-col">
@@ -1784,6 +2193,7 @@
             const [prefilledData, setPrefilledData] = useState(null);
             const [conflictData, setConflictData] = useState(null);
             const [mobileTab, setMobileTab] = useState('schedule');
+            const [maxClientLimit, setMaxClientLimit] = useState(user.maxClientLimit || 40); // [NEW] Client Limit State
             // [REFACTOR v1.0.5] showPlanModal 제거
 
             useEffect(() => {
@@ -1801,7 +2211,13 @@
             // [NEW] Handle initialView prop
             useEffect(() => {
                 if (initialView) {
-                    setRightPanel({ type: initialView });
+                    console.log('[Dashboard] Processing initialView:', initialView);
+                    // [MODIFIED] Check if initialView is object or string
+                    if (typeof initialView === 'object') {
+                        setRightPanel(initialView);
+                    } else {
+                        setRightPanel({ type: initialView });
+                    }
                     if (onInitialViewHandled) {
                         onInitialViewHandled();
                     }
@@ -1815,8 +2231,10 @@
                     teacher_id: user.teacherId,
                     // Ensure all numeric fields are valid integers or null (fix: "invalid input syntax for type integer")
                     session_time: data.sessionTime ? parseInt(data.sessionTime) : 50,
-                    age: data.age ? parseInt(data.age) : null
+                    age: data.age ? parseInt(data.age) : null,
+                    address_detail: data.detailAddress // [FIX] Map camelCase to correct DB column
                 };
+                delete payload.detailAddress; // Remove original to prevent detail_address generation
 
                 // Remove empty strings from payload to prevent DB errors
                 Object.keys(payload).forEach(key => {
@@ -1842,6 +2260,11 @@
             // Update Client in DB
             const handleUpdateClient = async (updatedClient) => {
                 const payload = keysToSnake(updatedClient);
+                // [FIX] Map detail_address back to address_detail if it exists
+                if (payload.detail_address !== undefined) {
+                    payload.address_detail = payload.detail_address;
+                    delete payload.detail_address;
+                }
                 const { error } = await supabase.from('clients').update(payload).eq('id', updatedClient.id);
                 if (!error) {
                     setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
@@ -1971,6 +2394,8 @@
                             onNewClick={() => setRightPanel({ type: 'form_select' })}
                             onClientClick={(client) => setRightPanel({ type: 'detail', client })}
                             settings={settings}
+                            maxClientLimit={maxClientLimit}
+                            setMaxClientLimit={setMaxClientLimit}
                         />
                     </aside>
 
@@ -2007,6 +2432,9 @@
                                     onNewClick={() => setRightPanel({ type: 'form_select' })}
                                     onClientClick={(client) => setRightPanel({ type: 'detail', client })}
                                     settings={settings}
+                                    maxClientLimit={maxClientLimit}
+                                    setMaxClientLimit={setMaxClientLimit}
+                                    user={user}
                                 />
                             )}
                             {mobileTab === 'reserve' && (
@@ -2017,13 +2445,26 @@
                                     onNewClick={() => setRightPanel({ type: 'form_select' })}
                                     onClientClick={(client) => setRightPanel({ type: 'detail', client })}
                                     settings={settings}
+                                    maxClientLimit={maxClientLimit}
+                                    setMaxClientLimit={setMaxClientLimit}
+                                    user={user}
                                 />
                             )}
 
                             {/* Mobile Modals Overlay (Form/Detail) */}
                             {(rightPanel.type === 'form_select' || rightPanel.type === 'form' || rightPanel.type === 'detail') && (
                                 <div className="absolute inset-0 z-50 bg-white flex flex-col">
-                                    {rightPanel.type === 'form_select' && <RegistrationTypeModal onSelect={(type) => setRightPanel({ type: 'form', formType: type })} onCancel={() => setRightPanel({ type: 'calendar' })} />}
+                                    {rightPanel.type === 'form_select' && <RegistrationTypeModal onSelect={(type) => {
+                                        // [REFACTOR v1.0.6] Check Client Limit on Add
+                                        if (type === 'client') {
+                                            const activeCount = safeClients.filter(c => c.status !== 'suspended' && c.status !== 'deleted').length;
+                                            if (activeCount >= maxClientLimit) {
+                                                showToast(`최대 ${maxClientLimit}명의 내담자만 등록이 가능합니다. 더이상의 내담자를 추가할 수 없습니다.`, 'error');
+                                                return;
+                                            }
+                                        }
+                                        setRightPanel({ type: 'form', formType: type });
+                                    }} onCancel={() => setRightPanel({ type: 'calendar' })} />}
                                     {rightPanel.type === 'form' && <ClientFormPage type={rightPanel.formType} initialData={rightPanel.initialData} defaultSessionTime={settings.defaultSessionTime} onClose={() => setRightPanel({ type: 'calendar' })} onSubmit={handleSaveClient} showToast={showToast} />}
                                     {rightPanel.type === 'detail' && (
                                         <ClientDetailPage
@@ -2033,7 +2474,13 @@
                                             setSchedules={setSchedules}
                                             onClose={() => setRightPanel({ type: 'calendar' })}
                                             onUpdate={handleUpdateClient}
-                                            onConvert={handleConvertClient}
+                                            onConvert={(client) => {
+                                                if (user?.status === 'request') {
+                                                    showToast("가입 승인 대기 중에는 정규 내담자로 등록할 수 없습니다.", "error");
+                                                    return;
+                                                }
+                                                handleConvertClient(client);
+                                            }}
                                             onDelete={async (id) => {
                                                 await supabase.from('clients').delete().eq('id', id);
                                                 setClients(clients.filter(c => c.id !== id));
@@ -2074,7 +2521,21 @@
                                     onGoToHistory={handleGoToHistory}
                                 />
                             )}
-                            {rightPanel.type === 'form_select' && <RegistrationTypeModal onSelect={(type) => setRightPanel({ type: 'form', formType: type })} onCancel={() => setRightPanel({ type: 'calendar' })} />}
+                            {rightPanel.type === 'form_select' && <RegistrationTypeModal onSelect={(type) => {
+                                if (user?.status === 'request') {
+                                    showToast("가입 승인 대기 중에는 신규 등록을 할 수 없습니다.", "error");
+                                    return;
+                                }
+                                // [REFACTOR v1.0.6] Check Client Limit on Add
+                                if (type === 'client') {
+                                    const activeCount = safeClients.filter(c => c.status !== 'suspended' && c.status !== 'deleted').length;
+                                    if (activeCount >= maxClientLimit) {
+                                        showToast(`최대 ${maxClientLimit}명의 내담자만 등록이 가능합니다. 더이상의 내담자를 추가할 수 없습니다.`, 'error');
+                                        return;
+                                    }
+                                }
+                                setRightPanel({ type: 'form', formType: type });
+                            }} onCancel={() => setRightPanel({ type: 'calendar' })} />}
                             {rightPanel.type === 'form' && <ClientFormPage type={rightPanel.formType} initialData={rightPanel.initialData} defaultSessionTime={settings.defaultSessionTime} onClose={() => setRightPanel({ type: 'calendar' })} onSubmit={handleSaveClient} showToast={showToast} />}
                             {rightPanel.type === 'detail' && (
                                 <ClientDetailPage
@@ -2084,7 +2545,13 @@
                                     setSchedules={setSchedules}
                                     onClose={() => setRightPanel({ type: 'calendar' })}
                                     onUpdate={handleUpdateClient}
-                                    onConvert={handleConvertClient}
+                                    onConvert={(client) => {
+                                        if (user?.status === 'request') {
+                                            showToast("가입 승인 대기 중에는 정규 내담자로 등록할 수 없습니다.", "error");
+                                            return;
+                                        }
+                                        handleConvertClient(client);
+                                    }}
                                     onDelete={async (id) => {
                                         await supabase.from('clients').delete().eq('id', id);
                                         setClients(clients.filter(c => c.id !== id));
@@ -2165,7 +2632,7 @@
         }
 
         // ClientManager
-        function ClientManager({ clients, setDragItem, onNewClick, onClientClick, forcedTab, settings }) {
+        function ClientManager({ clients, setDragItem, onNewClick, onClientClick, forcedTab, settings, maxClientLimit, setMaxClientLimit, user }) {
             const [tab, setTab] = useState(forcedTab || 'client');
             const [searchTerm, setSearchTerm] = useState('');
 
@@ -2211,22 +2678,50 @@
                 <div className="flex flex-col h-full relative">
                     {!forcedTab && (
                         <div className="flex border-b border-slate-200 bg-white shrink-0">
-                            <button onClick={() => setTab('client')} className={`flex-1 py-4 font-bold text-sm transition-colors ${tab === 'client' ? 'text-slate-900 border-b-2 border-[#FDE047]' : 'text-slate-400'}`}>내담자 ({clientCount})</button>
+                            <button onClick={() => setTab('client')} className={`flex-1 py-4 font-bold text-sm transition-colors ${tab === 'client' ? 'text-slate-900 border-b-2 border-[#FDE047]' : 'text-slate-400'}`}>내담자 ({clientCount}/{maxClientLimit})</button>
                             <button onClick={() => setTab('reserve')} className={`flex-1 py-4 font-bold text-sm transition-colors ${tab === 'reserve' ? 'text-slate-900 border-b-2 border-[#FDE047]' : 'text-slate-400'}`}>상담예약자 ({reserveCount})</button>
                         </div>
                     )}
-                    {forcedTab && (
-                        <div className="p-4 bg-white border-b border-slate-100 font-black text-lg">
-                            {forcedTab === 'client' ? `내담자 목록 (${clientCount})` : `상담 예약자 목록 (${reserveCount})`}
+                    {/* [NEW] Client Limit Gauge & Extension */}
+                    {tab === 'client' && (
+                        <div className="px-4 pt-4">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-slate-500">등록 현황</span>
+                                <span className={`text-xs font-bold ${clientCount >= maxClientLimit ? 'text-red-500' : 'text-slate-500'}`}>{clientCount} / {maxClientLimit}명</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-3">
+                                <div className={`h-full rounded-full transition-all duration-500 ${clientCount >= maxClientLimit ? 'bg-red-500' : 'bg-[#FDE047]'}`} style={{ width: `${Math.min((clientCount / maxClientLimit) * 100, 100)}%` }}></div>
+                            </div>
+                            {/* Extension Checkbox - REMOVED per User Feedback (Admin Only) */}
+                            {clientCount >= maxClientLimit && (
+                                <div className="p-2 rounded-lg border border-red-200 bg-red-50 text-center animate-pulse">
+                                    <span className="text-[10px] text-red-500 font-bold">한도에 도달했습니다. 관리자에게 문의하세요.</span>
+                                </div>
+                            )}
+
                         </div>
-                    )}
+                    )
+                    }
+                    {
+                        forcedTab && (
+                            <div className="p-4 bg-white border-b border-slate-100 font-black text-lg">
+                                {forcedTab === 'client' ? `내담자 목록 (${clientCount})` : `상담 예약자 목록 (${reserveCount})`}
+                            </div>
+                        )
+                    }
 
                     <div className="p-4 border-b border-slate-100 space-y-3 bg-white shrink-0">
                         <div className="relative">
                             <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                             <input type="text" placeholder="이름 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-100 pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FDE047]" />
                         </div>
-                        <button onClick={onNewClick} className="w-full bg-slate-900 text-white py-2 rounded-lg text-sm font-bold hover:bg-slate-700 transition flex items-center justify-center gap-2"><Plus size={16} /> 신규 등록</button>
+                        <button onClick={() => {
+                            if (user?.status === 'request') {
+                                showToast("가입 승인 대기 중에는 신규 등록을 할 수 없습니다.", "error");
+                                return;
+                            }
+                            onNewClick();
+                        }} className="w-full bg-slate-900 text-white py-2 rounded-lg text-sm font-bold hover:bg-slate-700 transition flex items-center justify-center gap-2"><Plus size={16} /> 신규 등록</button>
                     </div>
 
                     <div className="flex-1 flex overflow-hidden">
@@ -2262,7 +2757,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                </div >
             );
         }
 
@@ -2370,6 +2865,10 @@
             }, []);
 
             const handleDrop = async (targetDate, targetTime) => {
+                if (user?.status === 'request') {
+                    showToast("가입 승인 대기 중에는 일정을 변경하거나 추가할 수 없습니다.", "error");
+                    return;
+                }
                 if (!dragItem || !dragItem.type) return; // [FIX] Validate dragItem existence
 
                 if (!targetTime) {
@@ -2473,7 +2972,13 @@
                             <h2 className="text-2xl font-black">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월 {viewMode === 'day' && ` ${currentDate.getDate()}일`}</h2>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={() => onAddClick(new Date())} className="bg-[#FDE047] px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-300 shadow-sm">
+                            <button onClick={() => {
+                                if (user?.status === 'request') {
+                                    showToast("가입 승인 대기 중에는 일정을 추가할 수 없습니다.", "error");
+                                    return;
+                                }
+                                onAddClick(new Date());
+                            }} className="bg-[#FDE047] px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-yellow-300 shadow-sm">
                                 <Plus size={16} />
                                 <span className="hidden md:inline">수업 등록</span>
                                 <span className="md:hidden">수업</span>
@@ -2495,7 +3000,7 @@
 
                     <footer className="bg-slate-50 border-t p-3 text-center text-xs text-slate-400 font-medium">© 2026 HAHA LAB Corp. All rights reserved.</footer>
 
-                    {selectedSchedule && <ScheduleActionModal schedule={selectedSchedule} onClose={() => setSelectedSchedule(null)} onStart={() => { onStartSession(selectedSchedule); setSelectedSchedule(null); }} onNoShow={() => handleStatusChange(selectedSchedule.id, 'noshow')} onChange={handleReschedule} showToast={showToast} onDelete={() => onDeleteSchedule(selectedSchedule.id)} onGoToHistory={onGoToHistory} onStatusChange={handleStatusChange} />}
+                    {selectedSchedule && <ScheduleActionModal schedule={selectedSchedule} onClose={() => setSelectedSchedule(null)} onStart={() => { onStartSession(selectedSchedule); setSelectedSchedule(null); }} onNoShow={() => handleStatusChange(selectedSchedule.id, 'noshow')} onChange={handleReschedule} showToast={showToast} onDelete={() => onDeleteSchedule(selectedSchedule.id)} onGoToHistory={onGoToHistory} onStatusChange={handleStatusChange} user={user} />}
 
                 </div>
             );
@@ -2776,13 +3281,65 @@
                     });
                 }
 
+                // [NEW] Overlap Validation Check (Improved robustness for time string format)
+                const conflictList = [];
+                generateList.forEach(item => {
+                    const newSch = createSch(item.d, item.t);
+                    const conflicts = (Array.isArray(schedules) ? schedules : []).filter(s => {
+                        if (s.date !== newSch.date || s.status === 'deleted' || s.status === 'noshow') return false;
+
+                        // Handle potential undefined/null and seconds in Supabase time strings (e.g. "14:00:00" -> "14:00")
+                        const sStart = s.startTime ? s.startTime.substring(0, 5) : "";
+                        const sEnd = s.endTime ? s.endTime.substring(0, 5) : "";
+                        const nStart = newSch.start_time ? newSch.start_time.substring(0, 5) : "";
+                        const nEnd = newSch.end_time ? newSch.end_time.substring(0, 5) : "";
+
+                        console.log(`[Overlap Check] Existing: ${s.date} ${sStart}~${sEnd} | New: ${newSch.date} ${nStart}~${nEnd}`);
+
+                        if (!sStart || !sEnd || !nStart || !nEnd) {
+                            console.log(`[Overlap Check] Skipping due to missing time. sStart=${sStart}, sEnd=${sEnd}, nStart=${nStart}, nEnd=${nEnd}`);
+                            return false;
+                        }
+
+                        const isOverlap = checkTimeOverlap(nStart, nEnd, sStart, sEnd);
+                        console.log(`[Overlap Check] Result: ${isOverlap}`);
+                        return isOverlap;
+                    });
+
+                    if (conflicts.length > 0) {
+                        conflictList.push(newSch);
+                    }
+                });
+
+                if (conflictList.length > 0) {
+                    const firstOverlap = conflictList[0];
+                    if (onConflict) {
+                        // Trigger the Modal Conflict Resolver instead of a simple toast
+                        // For AddScheduleModal, we can reuse the global onConflict handler
+                        // Re-fetch conflicts for the exact newSch to pass to onConflict
+                        const exactConflicts = schedules.filter(s =>
+                            s.date === firstOverlap.date && s.status !== 'deleted' && s.status !== 'noshow' &&
+                            checkTimeOverlap(
+                                firstOverlap.start_time.substring(0, 5), firstOverlap.end_time.substring(0, 5),
+                                s.startTime.substring(0, 5), s.endTime.substring(0, 5)
+                            )
+                        );
+                        onConflict({ newSchedule: firstOverlap, conflicts: exactConflicts });
+                        onClose(); // Close the add modal to show the conflict resolution modal
+                    } else {
+                        if (showToast) showToast(`일정 중복: ${firstOverlap.date} ${firstOverlap.start_time.substring(0, 5)}~${firstOverlap.end_time.substring(0, 5)} 시간에 일정이 있습니다.`, 'error');
+                        else alert(`일정 중복: ${firstOverlap.date} ${firstOverlap.start_time.substring(0, 5)}~${firstOverlap.end_time.substring(0, 5)} 시간에 일정이 있습니다.`);
+                    }
+                    return; // Stop saving
+                }
+
                 // Insert to DB
                 const { data, error } = await supabase.from('schedules').insert(generateList.map(item => createSch(item.d, item.t))).select();
 
                 if (!error) {
                     onSubmit(keysToCamel(data));
                 } else {
-                    if (showToast) showToast("등록 실패: " + error.message);
+                    if (showToast) showToast("등록 실패: " + error.message, "error");
                     else alert("등록 실패: " + error.message);
                 }
             };
@@ -2834,7 +3391,7 @@
             );
         }
 
-        function ScheduleActionModal({ schedule, onClose, onStart, onNoShow, onChange, showToast, onDelete, onGoToHistory, onStatusChange }) {
+        function ScheduleActionModal({ schedule, onClose, onStart, onNoShow, onChange, showToast, onDelete, onGoToHistory, onStatusChange, user }) {
             const [mode, setMode] = useState('main');
             const [editData, setEditData] = useState({ date: schedule.date, time: schedule.startTime });
 
@@ -2990,7 +3547,13 @@
                         )}
                         {mode === 'main' ? (
                             <div className="grid grid-cols-2 gap-3">
-                                <button onClick={handleStart} className="col-span-2 bg-slate-900 text-[#FDE047] py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition"><Play size={20} fill="#FDE047" /> {schedule.type === 'reserve' ? '상담 시작' : '수업 시작'}</button>
+                                <button onClick={() => {
+                                    if (user?.status === 'request') {
+                                        showToast("가입 승인 대기 중에는 시작할 수 없습니다.", "error");
+                                        return;
+                                    }
+                                    handleStart();
+                                }} className="col-span-2 bg-slate-900 text-[#FDE047] py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition"><Play size={20} fill="#FDE047" /> {schedule.type === 'reserve' ? '상담 시작' : '수업 시작'}</button>
                                 <button onClick={() => setMode('complete_confirm')} className="col-span-2 bg-green-50 text-green-600 py-3 rounded-xl font-bold border border-green-100 hover:bg-green-100 flex items-center justify-center gap-2"><Check size={18} /> {schedule.type === 'reserve' ? '상담 완료 처리' : '수업 완료 처리'}</button>
                                 <button onClick={onNoShow} className={`${schedule.type === 'client' ? '' : 'col-span-2'} bg-red-50 text-red-600 py-3 rounded-xl font-bold border border-red-100 hover:bg-red-100`}>미출석</button>
                                 {schedule.type === 'client' && <button onClick={() => setMode('edit')} className="bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-50">일정 변경</button>}
@@ -3045,7 +3608,23 @@
 
         function ClientFormPage({ type, defaultSessionTime, onClose, onSubmit, initialData, customTitle, customButtonText, isConsultationMode, showToast }) {
             const isReserve = type === 'reserve';
-            const [form, setForm] = useState({ name: '', gender: '남', dob: '', age: '', contact: '', address: '', guardians: [{ name: '', relation: '', contact: '' }], sessionTime: defaultSessionTime, diagnosis: '', memo: '', initialConsult: '', areas: { lang: [], cogn: [], behv: [] }, reserveDate: '', reserveTime: '' });
+            const uniqueId = React.useId(); // [NEW] Unique ID for this form instance
+            const [form, setForm] = useState(initialData || {
+                name: '',
+                gender: '남',
+                dob: '',
+                age: 0,
+                contact: '',
+                zipCode: '',
+                address: '',
+                detailAddress: '',
+                sessionTime: defaultSessionTime,
+                guardians: [],
+                diagnosis: '',
+                initialConsult: '',
+                areas: { lang: [], cogn: [], behv: [] },
+                memo: ''
+            });
 
             useEffect(() => {
                 if (initialData) {
@@ -3075,71 +3654,217 @@
             };
             const addAreaTag = (area, value) => { if (!value.trim()) return; setForm(prev => ({ ...prev, areas: { ...prev.areas, [area]: [...prev.areas[area], value] } })); };
 
+            const handleRegister = async (onRegister) => {
+                const { data, error } = await supabase.from('clients').insert([{
+                    teacher_id: user.teacherId,
+                    name: form.name,
+                    type: type,
+                    status: 'normal',
+                    gender: form.gender,
+                    dob: form.dob,
+                    age: form.age,
+                    contact: form.contact,
+                    // [MODIFIED] Address fields
+                    zip_code: form.zipCode,
+                    address: form.address,
+                    address_detail: form.detailAddress,
+                    guardians: form.guardians,
+                    session_time: form.sessionTime,
+                    diagnosis: form.diagnosis,
+                    initial_consult: form.initialConsult,
+                    areas: form.areas,
+                    memo: form.memo
+                }]).select();
+
+                if (!error) {
+                    onRegister(keysToCamel(data[0]));
+                    onClose();
+                    showToast('등록되었습니다.');
+                } else {
+                    showToast('등록 실패: ' + error.message);
+                }
+            };
+
+            const handleUpdate = async (onRegister) => {
+                const { error } = await supabase.from('clients').update({
+                    name: form.name,
+                    gender: form.gender,
+                    dob: form.dob,
+                    age: form.age,
+                    contact: form.contact,
+                    // [MODIFIED] Address fields
+                    zip_code: form.zipCode,
+                    address: form.address,
+                    address_detail: form.detailAddress,
+                    guardians: form.guardians,
+                    session_time: form.sessionTime,
+                    diagnosis: form.diagnosis,
+                    initial_consult: form.initialConsult,
+                    areas: form.areas,
+                    memo: form.memo
+                }).eq('id', initialData.id);
+
+                if (!error) {
+                    onRegister({ ...initialData, ...form }); // Client side update mock
+                    onClose();
+                    showToast('수정되었습니다.');
+                } else {
+                    showToast('수정 실패: ' + error.message);
+                }
+            };
+
+            // [NEW] Daum Postcode Integration
+            // [NEW] Daum Postcode Integration (Robust Version)
+            const execDaumPostcode = () => {
+                new daum.Postcode({
+                    oncomplete: function (data) {
+                        var addr = ''; // 주소 변수
+                        var extraAddr = ''; // 참고항목 변수
+
+                        //사용자가 선택한 주소 타입에 따라 해당 주소 값을 가져온다.
+                        if (data.userSelectedType === 'R') { // 사용자가 도로명 주소를 선택했을 경우
+                            addr = data.roadAddress;
+                        } else { // 사용자가 지번 주소를 선택했을 경우(J)
+                            addr = data.jibunAddress;
+                        }
+
+                        // 사용자가 선택한 주소가 도로명 타입일때 참고항목을 조합한다.
+                        if (data.userSelectedType === 'R') {
+                            // 법정동명이 있을 경우 추가한다. (법정리는 제외)
+                            // 법정동의 경우 마지막 문자가 "동/로/가"로 끝난다.
+                            if (data.bname !== '' && /[동|로|가]$/g.test(data.bname)) {
+                                extraAddr += data.bname;
+                            }
+                            // 건물명이 있고, 공동주택일 경우 추가한다.
+                            if (data.buildingName !== '' && data.apartment === 'Y') {
+                                extraAddr += (extraAddr !== '' ? ', ' + data.buildingName : data.buildingName);
+                            }
+                            // 표시할 참고항목이 있을 경우, 괄호까지 추가한 최종 문자열을 만든다.
+                            if (extraAddr !== '') {
+                                addr += ' (' + extraAddr + ')';
+                            }
+                        }
+
+                        setForm(prev => ({
+                            ...prev,
+                            zipCode: data.zonecode,
+                            address: addr
+                        }));
+                        // Focus on detail address
+                        document.getElementById(`detailAddress-${uniqueId}`)?.focus();
+                    }
+                }).open();
+            };
             return (
-                <div className="flex flex-col h-full bg-white animate-fade-in overflow-hidden">
-                    <div className="p-6 border-b flex justify-between items-center bg-white sticky top-0 z-10"><div className="flex items-center gap-4"><button onClick={onClose}><ChevronLeft /></button><h2 className="text-2xl font-black">{customTitle ? customTitle : (initialData ? '정보 수정' : (isReserve ? '상담 예약자 등록' : '내담자 등록'))}</h2></div><button onClick={onClose}>닫기</button></div>
-                    <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full space-y-8">
-                        <section><h3 className="font-bold text-lg mb-4">기본 정보</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl">
-                            <input placeholder="이름" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="border p-3 rounded-xl" />
-                            <div className="flex gap-2">{['남', '여'].map(g => <button key={g} type="button" onClick={() => setForm({ ...form, gender: g })} className={`flex-1 border rounded-xl font-bold ${form.gender === g ? 'bg-[#FDE047]' : 'bg-white'}`}>{g}</button>)}</div>
-                            <div className="flex gap-2 items-center">
-                                <input
-                                    type="number"
-                                    placeholder="YYYY"
-                                    className="w-24 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047]"
-                                    value={form.dob ? form.dob.split('-')[0] : ''}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        // If empty year, clear DOB
-                                        if (!val) { setForm({ ...form, dob: '' }); return; }
-                                        const parts = form.dob ? form.dob.split('-') : ['', '', ''];
-                                        const m = parts[1] || '01'; // Default Month 01
-                                        const d = parts[2] || '01'; // Default Day 01
-                                        setForm({ ...form, dob: `${val}-${m}-${d}` });
-                                    }}
-                                />
-                                <span className="text-slate-400 font-bold text-xs">년</span>
-                                <select
-                                    className="flex-1 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047] appearance-none bg-white"
-                                    value={form.dob ? parseInt(form.dob.split('-')[1] || 1) : ''}
-                                    onChange={(e) => {
-                                        const val = e.target.value.toString().padStart(2, '0');
-                                        const parts = form.dob ? form.dob.split('-') : [new Date().getFullYear(), '01', '01'];
-                                        const y = parts[0] || new Date().getFullYear();
-                                        const d = parts[2] || '01';
-                                        setForm({ ...form, dob: `${y}-${val}-${d}` });
-                                    }}
-                                >
-                                    <option value="" disabled>월</option>
-                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(v => <option key={v} value={v}>{v}</option>)}
-                                </select>
-                                <span className="text-slate-400 font-bold text-xs">월</span>
-                                <select
-                                    className="flex-1 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047] appearance-none bg-white"
-                                    value={form.dob ? parseInt(form.dob.split('-')[2] || 1) : ''}
-                                    onChange={(e) => {
-                                        const val = e.target.value.toString().padStart(2, '0');
-                                        const parts = form.dob ? form.dob.split('-') : [new Date().getFullYear(), '01', '01'];
-                                        const y = parts[0] || new Date().getFullYear();
-                                        const m = parts[1] || '01';
-                                        setForm({ ...form, dob: `${y}-${m}-${val}` });
-                                    }}
-                                >
-                                    <option value="" disabled>일</option>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(v => <option key={v} value={v}>{v}</option>)}
-                                </select>
-                                <span className="text-slate-400 font-bold text-xs">일</span>
-                                <input type="number" readOnly className="w-20 border p-3 rounded-xl text-center bg-slate-100 text-slate-500 ml-2" value={form.age} />
-                                <span className="text-slate-400 font-bold text-xs">세</span>
-                            </div>
-                            <input placeholder="연락처" className="border p-3 rounded-xl" value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
-                            <input placeholder="주소" className="border p-3 rounded-xl md:col-span-2" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
-                            {/* [RESTORED] Default Session Time */}
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-bold text-slate-500 mb-1 block">기본 수업 시간 (분)</label>
-                                <input type="number" className="border p-3 rounded-xl w-full" value={form.sessionTime} onChange={e => setForm({ ...form, sessionTime: parseInt(e.target.value) || 0 })} />
-                            </div>
-                        </div></section>
+                // [MODIFIED] Changed to fixed full-screen overlay with global scroll
+                <div className="fixed inset-0 z-[100] bg-white animate-fade-in overflow-y-auto flex flex-col">
+                    <div className="p-6 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+                        <div className="flex items-center gap-4">
+                            <button onClick={onClose}><ChevronLeft /></button>
+                            <h2 className="text-2xl font-black">{customTitle ? customTitle : (initialData ? '정보 수정' : (isReserve ? '상담 예약자 등록' : '내담자 등록'))}</h2>
+                        </div>
+                        <button onClick={onClose}>닫기</button>
+                    </div>
+                    <div className="flex-1 p-8 max-w-4xl mx-auto w-full space-y-8">
+                        <section>
+                            <h3 className="font-bold text-lg mb-4">기본 정보</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl">
+                                <input placeholder="이름" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} className="border p-3 rounded-xl" />
+                                <div className="flex gap-2">{['남', '여'].map(g => <button key={g} type="button" onClick={() => setForm({ ...form, gender: g })} className={`flex-1 border rounded-xl font-bold ${form.gender === g ? 'bg-[#FDE047]' : 'bg-white'}`}>{g}</button>)}</div>
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        type="number"
+                                        placeholder="YYYY"
+                                        className="w-24 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047]"
+                                        value={form.dob ? form.dob.split('-')[0] : ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            // If empty year, clear DOB
+                                            if (!val) { setForm({ ...form, dob: '' }); return; }
+                                            const parts = form.dob ? form.dob.split('-') : ['', '', ''];
+                                            const m = parts[1] || '01'; // Default Month 01
+                                            const d = parts[2] || '01'; // Default Day 01
+                                            setForm({ ...form, dob: `${val}-${m}-${d}` });
+                                        }}
+                                    />
+                                    <span className="text-slate-400 font-bold text-xs">년</span>
+                                    <select
+                                        className="flex-1 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047] appearance-none bg-white"
+                                        value={form.dob ? parseInt(form.dob.split('-')[1] || 1) : ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value.toString().padStart(2, '0');
+                                            const parts = form.dob ? form.dob.split('-') : [new Date().getFullYear(), '01', '01'];
+                                            const y = parts[0] || new Date().getFullYear();
+                                            const d = parts[2] || '01';
+                                            setForm({ ...form, dob: `${y}-${val}-${d}` });
+                                        }}
+                                    >
+                                        <option value="" disabled>월</option>
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(v => <option key={v} value={v}>{v}</option>)}
+                                    </select>
+                                    <span className="text-slate-400 font-bold text-xs">월</span>
+                                    <select
+                                        className="flex-1 border p-3 rounded-xl text-center outline-none focus:border-[#FDE047] appearance-none bg-white"
+                                        value={form.dob ? parseInt(form.dob.split('-')[2] || 1) : ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value.toString().padStart(2, '0');
+                                            const parts = form.dob ? form.dob.split('-') : [new Date().getFullYear(), '01', '01'];
+                                            const y = parts[0] || new Date().getFullYear();
+                                            const m = parts[1] || '01';
+                                            setForm({ ...form, dob: `${y}-${m}-${val}` });
+                                        }}
+                                    >
+                                        <option value="" disabled>일</option>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(v => <option key={v} value={v}>{v}</option>)}
+                                    </select>
+                                    <span className="text-slate-400 font-bold text-xs">일</span>
+                                    <input type="number" readOnly className="w-20 border p-3 rounded-xl text-center bg-slate-100 text-slate-500 ml-2" value={form.age} />
+                                    <span className="text-slate-400 font-bold text-xs">세</span>
+                                </div>
+                                <input placeholder="연락처" className="border p-3 rounded-xl" value={form.contact} onChange={e => setForm({ ...form, contact: formatPhoneNumber(e.target.value) })} maxLength={13} />
+
+                                {/* [MODIFIED] Address Section with Daum Postcode */}
+                                <div className="md:col-span-2 space-y-2">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            id={`postcode-${uniqueId}`}
+                                            placeholder="우편번호"
+                                            className="w-32 border p-3 rounded-xl bg-slate-50"
+                                            value={form.zipCode || ''}
+                                            readOnly
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={execDaumPostcode}
+                                            className="px-4 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700"
+                                        >
+                                            우편번호 찾기
+                                        </button>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        id={`address-${uniqueId}`}
+                                        placeholder="주소"
+                                        className="w-full border p-3 rounded-xl bg-slate-50"
+                                        value={form.address || ''}
+                                        readOnly
+                                    />
+                                    <input
+                                        type="text"
+                                        id={`detailAddress-${uniqueId}`}
+                                        placeholder="상세주소"
+                                        className="w-full border p-3 rounded-xl"
+                                        value={form.detailAddress || ''}
+                                        onChange={e => setForm({ ...form, detailAddress: e.target.value })}
+                                    />
+                                </div>
+                                {/* [RESTORED] Default Session Time */}
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-1 block">기본 수업 시간 (분)</label>
+                                    <input type="number" className="border p-3 rounded-xl w-full" value={form.sessionTime} onChange={e => setForm({ ...form, sessionTime: parseInt(e.target.value) || 0 })} />
+                                </div>
+                            </div></section>
                         <section>
                             <h3 className="font-bold text-lg mb-4">보호자 정보 (최대 3명)</h3>
                             <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-3">
@@ -3147,7 +3872,7 @@
                                     <div key={i} className="flex gap-2">
                                         <input placeholder="이름" className="flex-1 border p-2 rounded-lg" value={g.name} onChange={e => { const newG = [...form.guardians]; newG[i].name = e.target.value; setForm({ ...form, guardians: newG }) }} />
                                         <input placeholder="관계" className="w-20 border p-2 rounded-lg" value={g.relation} onChange={e => { const newG = [...form.guardians]; newG[i].relation = e.target.value; setForm({ ...form, guardians: newG }) }} />
-                                        <input placeholder="연락처" className="flex-1 border p-2 rounded-lg" value={g.contact} onChange={e => { const newG = [...form.guardians]; newG[i].contact = e.target.value; setForm({ ...form, guardians: newG }) }} />
+                                        <input placeholder="연락처" className="flex-1 border p-2 rounded-lg" value={g.contact} onChange={e => { const newG = [...form.guardians]; newG[i].contact = formatPhoneNumber(e.target.value); setForm({ ...form, guardians: newG }) }} maxLength={13} />
                                     </div>
                                 ))}
                                 {form.guardians.length < 3 && <button type="button" onClick={() => setForm({ ...form, guardians: [...form.guardians, { name: '', relation: '', contact: '' }] })} className="text-sm font-bold text-slate-500">+ 보호자 추가</button>}
@@ -3187,6 +3912,8 @@
             const [loading, setLoading] = useState(true);
             const trendChartRef = useRef(null);
             const trendChartInstance = useRef(null);
+            const radarChartRef = useRef(null);
+            const radarChartInstance = useRef(null);
 
             // Session Comparison State
             const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -3268,10 +3995,10 @@
 
                     return {
                         month,
-                        avgRT: avg(metrics.map(m => m.avgRT || 0)),
-                        accuracy: avg(metrics.map(m => m.accuracy || 0)) * 100,
+                        avgRT: avg(metrics.map(m => m.avgRT || m.rtAvg || m.rt || 0)),
+                        accuracy: avg(metrics.map(m => m.accuracy || (m.acc && m.acc <= 100 ? m.acc / 100 : m.acc) || 0)) * 100,
                         iiv: avg(metrics.map(m => m.iiv || 0)),
-                        sustainedAttention: avg(metrics.map(m => m.sustainedAttention || 0)) * 100
+                        sustainedAttention: avg(metrics.map(m => m.sustainedAttention || m.susRate || m.sus || 0)) * 100
                     };
                 });
             }, [filteredSessions]);
@@ -3336,6 +4063,80 @@
                 };
             }, [monthlyData]);
 
+            // Render Radar Chart for Latest Session
+            useEffect(() => {
+                if (!radarChartRef.current || filteredSessions.length === 0) return;
+
+                if (radarChartInstance.current) {
+                    radarChartInstance.current.destroy();
+                }
+
+                const latestSession = filteredSessions[0];
+                const metrics = latestSession.metrics || {};
+
+                // Normalize metrics to 0-100 for Radar Chart
+                // RT: lower is better. Assuming baseline 800ms=0, 300ms=100
+                const rawRT = metrics.avgRT || metrics.rtAvg || metrics.rt || 500;
+                const speedScore = Math.max(0, Math.min(100, 100 - ((rawRT - 300) / 5)));
+
+                // Accuracy: 0-1 -> 0-100
+                const rawAcc = metrics.accuracy || (metrics.acc && metrics.acc <= 100 ? metrics.acc / 100 : metrics.acc) || 0;
+                const accScore = rawAcc <= 1 ? rawAcc * 100 : rawAcc;
+
+                // IIV (Stability): lower is better. Assuming 50ms=100, 250ms=0
+                const rawIiv = metrics.iiv || 100;
+                const stabilityScore = Math.max(0, Math.min(100, 100 - ((rawIiv - 50) / 2)));
+
+                // Sustained Attention: 0-1 -> 0-100
+                const rawSus = metrics.sustainedAttention || metrics.susRate || metrics.sus || 0;
+                const susScore = rawSus <= 1 ? rawSus * 100 : rawSus;
+
+                // Efficiency: 0-1 -> 0-100
+                const rawEff = metrics.efficiency || 0;
+                let effScore = rawEff <= 1 ? rawEff * 100 : rawEff;
+
+                if (effScore === 0 && rawAcc > 0) {
+                    effScore = (speedScore + accScore) / 2;
+                }
+
+                const ctx = radarChartRef.current.getContext('2d');
+                radarChartInstance.current = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['처리 속도', '정확도', '안정성(IIV)', '지속 주의력', '인지 효율성'],
+                        datasets: [{
+                            label: '최근 인지 성능 프로파일',
+                            data: [speedScore, accScore, stabilityScore, susScore, effScore],
+                            fill: true,
+                            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                            borderColor: 'rgb(99, 102, 241)',
+                            pointBackgroundColor: 'rgb(99, 102, 241)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgb(99, 102, 241)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            r: {
+                                suggestedMin: 0,
+                                suggestedMax: 100,
+                                ticks: { stepSize: 20, backdropColor: 'transparent' }
+                            }
+                        },
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+
+                return () => {
+                    if (radarChartInstance.current) radarChartInstance.current.destroy();
+                };
+            }, [filteredSessions]);
+
 
 
 
@@ -3369,10 +4170,10 @@
                 if (metrics.lapseRate < 0.05) strengths.push('집중력 유지 탁월');
 
                 // Weaknesses analysis
-                if (metrics.accuracy < 0.7) weaknesses.push('정확도 개선 필요 (70% 미만)');
-                if (metrics.avgRT > 700) weaknesses.push('반응속도 느림 (700ms 이상)');
+                if (metrics.accuracy < 0.7 || (metrics.acc && metrics.acc < 70)) weaknesses.push('정확도 개선 필요 (70% 미만)');
+                if ((metrics.avgRT || metrics.rtAvg || metrics.rt) > 700) weaknesses.push('반응속도 느림 (700ms 이상)');
                 if (metrics.iiv > 200) weaknesses.push('반응시간 변동성 높음');
-                if (metrics.anticipatoryRate > 0.12) weaknesses.push('충동 조절 개선 필요');
+                if ((metrics.anticipatoryRate || metrics.comm) > 0.12) weaknesses.push('충동 조절 개선 필요');
                 if (metrics.fatigueIndex > 0.08) weaknesses.push('피로도 관리 필요');
                 if (metrics.lapseRate > 0.1) weaknesses.push('주의력 집중 개선 필요');
 
@@ -3434,12 +4235,24 @@
                         <button onClick={() => setTimeRange(12)} className={`px-4 py-2 rounded-lg font-bold ${timeRange === 12 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>1년</button>
                     </div>
 
-                    {/* Trend Chart - Reduced Height */}
-                    <div className="bg-white border rounded-xl p-4">
-                        <canvas ref={trendChartRef} id="trendChart" style={{ maxHeight: '300px' }}></canvas>
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Trend Chart */}
+                        <div className="bg-white border rounded-xl p-4 flex flex-col items-center">
+                            <h4 className="font-bold text-slate-800 mb-4 self-start">📈 성장 추이 그래프</h4>
+                            <div className="w-full relative flex justify-center" style={{ height: '300px' }}>
+                                <canvas ref={trendChartRef} id="trendChart"></canvas>
+                            </div>
+                        </div>
+
+                        {/* Radar Chart */}
+                        <div className="bg-white border rounded-xl p-4 flex flex-col items-center">
+                            <h4 className="font-bold text-slate-800 mb-4 self-start">🎯 최근 인지 프로필 (최근 1회 기준)</h4>
+                            <div className="w-full relative flex justify-center" style={{ height: '300px' }}>
+                                <canvas ref={radarChartRef} id="growthRadarChart"></canvas>
+                            </div>
+                        </div>
                     </div>
-
-
 
                     {/* Session List with Detailed Feedback - NEW! */}
                     <div className="bg-white border rounded-xl p-6">
@@ -3530,9 +4343,9 @@
                                                     <div className="flex-1 flex items-center gap-3 text-sm cursor-pointer" onClick={() => setExpandedSession(isExpanded ? null : session.id)}>
                                                         <span className="font-bold text-slate-800 min-w-[120px]">{session.details.game_name}</span>
                                                         <span className="text-xs text-slate-500">{session.event_datetime.substring(0, 16).replace('T', ' ')}</span>
-                                                        <span className="bg-white px-2 py-0.5 rounded border text-xs">Lv.{session.details.level}</span>
-                                                        <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-bold">{((session.metrics.accuracy || 0) * 100).toFixed(1)}%</span>
-                                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{(session.metrics.avgRT || 0).toFixed(0)}ms</span>
+                                                        <span className="bg-white px-2 py-0.5 rounded border text-xs">Lv.{session.details.level || session.metadata?.level || 1}</span>
+                                                        <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-bold">{((session.metrics.accuracy || (session.metrics.acc && session.metrics.acc <= 1 ? session.metrics.acc : session.metrics.acc / 100) || 0) * 100).toFixed(1)}%</span>
+                                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs">{(session.metrics.avgRT || session.metrics.rtAvg || session.metrics.rt || 0).toFixed(0)}ms</span>
                                                     </div>
 
                                                     {/* Expand Arrow */}
@@ -3557,15 +4370,15 @@
                                                         <div className="grid grid-cols-3 gap-3">
                                                             <div className="p-3 bg-slate-50 rounded">
                                                                 <p className="text-xs text-slate-600">평균 반응시간</p>
-                                                                <p className="font-bold text-lg">{(session.metrics.avgRT || 0).toFixed(0)}ms</p>
+                                                                <p className="font-bold text-lg">{(session.metrics.avgRT || session.metrics.rtAvg || session.metrics.rt || 0).toFixed(0)}ms</p>
                                                             </div>
                                                             <div className="p-3 bg-slate-50 rounded">
                                                                 <p className="text-xs text-slate-600">정확도</p>
-                                                                <p className="font-bold text-lg">{((session.metrics.accuracy || 0) * 100).toFixed(1)}%</p>
+                                                                <p className="font-bold text-lg">{((session.metrics.accuracy || (session.metrics.acc && session.metrics.acc <= 1 ? session.metrics.acc : session.metrics.acc / 100) || 0) * 100).toFixed(1)}%</p>
                                                             </div>
                                                             <div className="p-3 bg-slate-50 rounded">
                                                                 <p className="text-xs text-slate-600">지속 주의력</p>
-                                                                <p className="font-bold text-lg">{((session.metrics.sustainedAttention || 0) * 100).toFixed(1)}%</p>
+                                                                <p className="font-bold text-lg">{((session.metrics.sustainedAttention || session.metrics.susRate || session.metrics.sus || 0) * 100).toFixed(1)}%</p>
                                                             </div>
                                                             <div className="p-3 bg-slate-50 rounded">
                                                                 <p className="text-xs text-slate-600">IIV (변동성)</p>
@@ -4236,6 +5049,31 @@
             };
 
             const handleResume = () => {
+                // [NEW] Reactivation Lock Logic
+                if (client.status === 'paused' && client.updated_at) { // client.updated_at is usually set when status changes
+                    // Note: Supabase automatically updates updated_at? If not, we rely on updated_at being handled in update logic
+                    // But for this feature, let's assume we use validation on the date.
+                    // If we don't have exact pause date, we might fallback. 
+                    // However, 'suspended' usually implies 'paused'.
+
+                    const pauseDate = new Date(client.updated_at || client.createdAt); // Fallback to created if no update
+                    const today = new Date();
+                    const diffTime = Math.abs(today - pauseDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    // Logic check: "Visually disabling... for clients suspended for less than 14 days"
+                    // Wait, usually it's "cannot resume if suspended > X days" or "cannot resume immediately"?
+                    // Prompt says: "disabling... for clients suspended for less than 14 days." 
+                    // This implies a mandatory 14-day cooling-off period? 
+                    // "Reactivation Lock Tooltip: Visually disabling the "Activate" button for clients suspended for less than 14 days. On hover, a tooltip should display the remaining time until reactivation is possible."
+                    // Yes, mandatory cooling-off.
+
+                    if (diffDays < 14) {
+                        showToast(`수업 정지 후 14일이 지나야 재개가 가능합니다. (남은 기간: ${14 - diffDays}일)`);
+                        return;
+                    }
+                }
+
                 onUpdate({ ...client, status: 'active' });
                 showToast('수업이 재개되었습니다.');
                 setActionStep(null);
@@ -4353,7 +5191,7 @@
                             <div className="space-y-6">
                                 <div className="bg-slate-50 p-6 rounded-2xl space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div><span className="text-xs text-slate-400 font-bold block">연락처</span><p className="font-bold">{client.contact || '-'}</p></div>
+                                        <div><span className="text-xs text-slate-400 font-bold block">연락처</span><p className="font-bold">{formatPhoneNumber(client.contact) || '-'}</p></div>
                                         <div><span className="text-xs text-slate-400 font-bold block">생년월일 (나이)</span><p>{client.dob} (만 {client.age}세)</p></div>
                                         <div><span className="text-xs text-slate-400 font-bold block">기본 수업 시간</span><p>{client.sessionTime || 50}분</p></div>
                                         <div className="col-span-2"><span className="text-xs text-slate-400 font-bold block">주소</span><p>{client.address || '-'}</p></div>
@@ -4361,7 +5199,7 @@
                                     <div className="border-t border-slate-200 pt-4">
                                         <span className="text-xs text-slate-400 font-bold block mb-2">보호자 정보</span>
                                         {client.guardians && client.guardians.map((g, i) => (
-                                            <div key={i} className="flex gap-2 text-sm mb-1"><span className="font-bold w-16">{g.name}</span><span className="text-slate-500 w-10">({g.relation})</span><span>{g.contact}</span></div>
+                                            <div key={i} className="flex gap-2 text-sm mb-1"><span className="font-bold w-16">{g.name}</span><span className="text-slate-500 w-10">({g.relation})</span><span>{formatPhoneNumber(g.contact)}</span></div>
                                         ))}
                                     </div>
                                 </div>
@@ -4394,7 +5232,31 @@
                                                 {client.type === 'client' && (
                                                     <>
                                                         {client.status === 'paused' || client.status === 'terminated' ? (
-                                                            <button onClick={handleResume} className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-green-200">수업 재개</button>
+                                                            (() => {
+                                                                // Reactivation Lock Validation for UI
+                                                                const pauseDate = new Date(client.updated_at || client.createdAt);
+                                                                const today = new Date();
+                                                                const diffTime = Math.abs(today - pauseDate);
+                                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                                const isLocked = client.status === 'paused' && diffDays < 14;
+
+                                                                return (
+                                                                    <div className="relative group/tooltip inline-block">
+                                                                        <button
+                                                                            onClick={handleResume}
+                                                                            disabled={isLocked}
+                                                                            className={`px-4 py-2 rounded-lg font-bold text-sm ${isLocked ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                                                                        >
+                                                                            수업 재개
+                                                                        </button>
+                                                                        {isLocked && (
+                                                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover/tooltip:opacity-100 transition whitespace-nowrap pointer-events-none z-50">
+                                                                                재활성화 가능까지 {14 - diffDays}일 남았습니다.
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()
                                                         ) : (
                                                             <button onClick={() => setActionStep('confirm_pause')} className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-orange-200">수업 정지</button>
                                                         )}
@@ -4523,7 +5385,13 @@
                                 {/* Floating Start Button for History Tab */}
                                 {client.status !== 'terminated' && client.status !== 'paused' && client.status !== 'deleted' && (
                                     <button
-                                        onClick={() => setShowStartModal(true)}
+                                        onClick={() => {
+                                            if (user?.status === 'request') {
+                                                showToast("가입 승인 대기 중에는 시작할 수 없습니다.", "error");
+                                                return;
+                                            }
+                                            setShowStartModal(true);
+                                        }}
                                         className="absolute bottom-10 right-8 bg-[#FDE047] text-slate-900 px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 hover:scale-105 transition z-20"
                                     >
                                         <Play size={20} fill="#1e293b" /> {client.type === 'reserve' ? '상담 시작' : '수업 시작'}
@@ -4536,7 +5404,13 @@
                     {/* Floating Action Button */}
                     {client.status !== 'terminated' && client.status !== 'paused' && client.status !== 'deleted' && (
                         <button
-                            onClick={() => setShowStartModal(true)}
+                            onClick={() => {
+                                if (user?.status === 'request') {
+                                    showToast("가입 승인 대기 중에는 시작할 수 없습니다.", "error");
+                                    return;
+                                }
+                                setShowStartModal(true);
+                            }}
                             className="absolute bottom-10 right-8 bg-[#FDE047] text-slate-900 px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 hover:scale-105 transition z-20"
                         >
                             <Play size={20} fill="#1e293b" /> {client.type === 'reserve' ? '상담 시작' : '수업 시작'}

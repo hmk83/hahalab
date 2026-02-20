@@ -5,6 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PlayLab: 신호등 지킴이</title>
+    <link rel="icon" type="image/svg+xml" href="../images/hahalab-P.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Supabase & Init -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://gxungzlecmibgvykoiib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_hzQriBXTJeAwATA2NjnV7A_Tr9E1hfE';
+        if (window.supabase && window.supabase.createClient) {
+            window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+    </script>
+
     <script src="playlab-core.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -283,6 +297,20 @@
             to {
                 opacity: 0;
                 transform: translateY(-10px);
+            }
+        }
+
+        .error-flash {
+            animation: flashRed 0.3s ease-out;
+        }
+
+        @keyframes flashRed {
+            0% {
+                background-color: rgba(239, 68, 68, 0.3);
+            }
+
+            100% {
+                background-color: transparent;
             }
         }
 
@@ -588,10 +616,161 @@
             transform: translate(-50%, -50%) scale(1);
             opacity: 1;
         }
+
+        /* --- INPUT MODAL (New) --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .input-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-width: 90%;
+            width: 400px;
+        }
+
+        .modal-overlay.active .input-card {
+            transform: scale(1);
+        }
+
+        .input-btn {
+            width: 100%;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .input-btn:hover {
+            border-color: #6366f1;
+            background: #eef2ff;
+            color: #4f46e5;
+        }
+
+        .input-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* --- INPUT MODAL (New) --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .input-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            max-width: 90%;
+            width: 400px;
+        }
+
+        .modal-overlay.active .input-card {
+            transform: scale(1);
+        }
+
+        .input-btn {
+            width: 100%;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .input-btn:hover {
+            border-color: #6366f1;
+            background: #eef2ff;
+            color: #4f46e5;
+        }
+
+        .input-btn:active {
+            transform: scale(0.98);
+        }
     </style>
 </head>
 
+
 <body>
+    <!-- INPUT SELECTION MODAL -->
+    <div id="modal-input" class="modal-overlay active">
+        <div class="input-card">
+            <h2 class="text-2xl font-black text-slate-800 mb-2">입력 기기 선택</h2>
+            <p class="text-slate-500 mb-6 text-sm">현재 사용 중인 입력 방식을 선택해주세요.<br>선택하지 않은 기기의 입력은 차단됩니다.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button class="input-btn" onclick="selectInput('TOUCH')">
+                    <span class="material-symbols-rounded input-icon text-emerald-500">touch_app</span>
+                    <span class="font-bold text-slate-700">터치스크린</span>
+                </button>
+                <button class="input-btn" onclick="selectInput('MOUSE')">
+                    <span class="material-symbols-rounded input-icon text-blue-500">mouse</span>
+                    <span class="font-bold text-slate-700">마우스</span>
+                </button>
+                <button class="input-btn col-span-2" onclick="selectInput('GAMEPAD')">
+                    <span class="material-symbols-rounded input-icon text-purple-500">videogame_asset</span>
+                    <span class="font-bold text-slate-700">게임패드 (조이스틱)</span>
+                </button>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-4">* 임상 기준에 맞춰 반응속도가 자동 보정됩니다.</p>
+        </div>
+    </div>
 
     <main>
         <!-- 1. 메뉴 화면 -->
@@ -688,17 +867,7 @@
                 </div>
 
                 <!-- 중앙: 메시지 버블 & 패드 아이콘 -->
-                <div
-                    class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-                    <div id="msg-bubble"
-                        class="bg-white px-4 py-1.5 rounded-full font-bold text-lg shadow-md border border-slate-200 mb-2 opacity-0 transition-opacity text-slate-600 whitespace-nowrap">
-                        준비...
-                    </div>
-                    <div id="game-gamepad-indicator"
-                        class="hidden text-emerald-500 bg-emerald-50 rounded-full p-1 border border-emerald-100">
-                        <span class="material-symbols-rounded text-lg block">videogame_asset</span>
-                    </div>
-                </div>
+                <!-- Moved msg-bubble from here -->
 
                 <!-- 나가기 버튼 -->
                 <button onclick="goToMenuConfirm('GAME')"
@@ -712,6 +881,15 @@
                 <div class="flex-grow flex flex-col items-center justify-center w-full max-w-2xl px-4">
 
                     <!-- 신호등 -->
+                    <div id="msg-bubble"
+                        class="bg-white px-8 py-3 rounded-full font-black text-6xl shadow-xl border-4 border-slate-200 mb-8 transition-opacity whitespace-nowrap z-50 text-slate-400 opacity-0 transform translate-y-2">
+                        준비...
+                    </div>
+                    <div id="game-gamepad-indicator"
+                        class="hidden text-emerald-500 bg-emerald-50 rounded-full p-1 border border-emerald-100 mb-4">
+                        <span class="material-symbols-rounded text-lg block">videogame_asset</span>
+                    </div>
+
                     <div class="traffic-light-container">
                         <div id="light-red" class="light red"></div>
                         <div id="light-yellow" class="light yellow"></div>
@@ -830,9 +1008,7 @@
                             <canvas id="radarChart"></canvas>
 
                             <!-- 지표 설명 섹션 -->
-                            <div id="metric-descriptions" class="mt-6 w-full text-left space-y-2">
-                                <!-- JavaScript로 동적으로 채워짐 -->
-                            </div>
+
                         </div>
 
                         <div class="flex flex-col justify-between gap-4">
@@ -875,18 +1051,70 @@
                     </div>
                 </div>
 
-                <!-- 하단 정보 (공통) -->
-                <div class="flex flex-col items-center gap-4 mt-8 opacity-60">
-                    <p class="text-[10px] text-slate-400 text-center leading-relaxed">
-                        * 본 결과는 의료법 상의 확정 진단이 아니며, 보조적 진단 자료(Auxiliary Diagnostic Data)로 활용되어야 합니다.<br>
-                        Algorithm: Go/No-Go Paradigm based on PlayLab DTx Logic.
-                    </p>
+                <!-- 상세 분석 지표 설명 (New Section) -->
+                <div class="col-span-1 lg:col-span-2 mt-8 pt-8 border-t border-slate-200">
+                    <h3 class="text-lg font-bold text-slate-800 mb-6">📊 상세 분석 지표 설명 (Detailed Metrics)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+
+                        <!-- 2. 인지 프로파일 지표 (Chart) -->
+                        <div class="col-span-1 md:col-span-2">
+                            <h4 class="font-bold text-slate-700 mb-4 flex items-center gap-2 text-sm">
+                                <span class="w-1.5 h-5 bg-emerald-500 rounded-full"></span>
+                                인지 프로파일 지표 (Cognitive Profile)
+                            </h4>
+                            <div id="chart-descriptions" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                <!-- JS will populate this -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 수치 산출 기준 (Calculation Logic) -->
+
+
+                    <!-- 하단 정보 (공통) -->
+                    <!-- 수치 산출 기준 (Calculation Logic) -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 mt-8">
+                        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
+                            <span class="material-symbols-rounded">calculate</span>
+                            수치 산출 기준 (Calculation Logic)
+                        </h3>
+                        <ul class="text-xs text-slate-600 space-y-2 list-disc list-inside leading-relaxed font-medium">
+                            <li><strong class="text-slate-800">속도 (RT):</strong> 정답을 맞춘 반응 시간의 평균 (ms). 입력 장치별 보정값 적용됨.
+                            </li>
+                            <li><strong class="text-slate-800">정확도 (ACC):</strong> (정답 횟수 / 전체 시도 횟수) × 100</li>
+                            <li><strong class="text-slate-800">충동 오류 (Commission):</strong> 멈춰야 할 신호에 반응한 횟수. (충동성 지표)
+                            </li>
+                            <li><strong class="text-slate-800">부주의 (Omission):</strong> 반응해야 할 신호를 놓친 횟수. (주의력 지표)</li>
+                        </ul>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-4 mt-8 opacity-60">
+                        <p class="text-[10px] text-slate-400 text-center leading-relaxed">
+                            * 본 결과는 의료법 상의 확정 진단이 아니며, 보조적 진단 자료(Auxiliary Diagnostic Data)로 활용되어야 합니다.<br>
+                            Algorithm: Go/No-Go Paradigm based on PlayLab DTx Logic.
+                        </p>
+                    </div>
                 </div>
             </div>
-        </div>
     </main>
 
     <div id="toast-container"></div>
+
+    <!-- INPUT SELECTION MODAL -->
+    <div id="modal-input" class="modal-overlay">
+        <div class="input-card">
+            <h3 class="text-2xl font-black text-slate-800 mb-2">입력 장치 선택</h3>
+            <p class="text-slate-500 mb-6 text-sm">사용할 입력 장치를 선택해주세요.</p>
+            <button class="input-btn" onclick="selectInput('TOUCH')"><span
+                    class="material-symbols-rounded">touch_app</span>터치 (Touch)</button>
+            <button class="input-btn" onclick="selectInput('MOUSE')"><span
+                    class="material-symbols-rounded">mouse</span>마우스 (Mouse)</button>
+            <button class="input-btn" onclick="selectInput('GAMEPAD')"><span
+                    class="material-symbols-rounded">videogame_asset</span>게임패드 (Gamepad)</button>
+        </div>
+    </div>
+
     <div id="modal-confirm-home"
         class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-[110] flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-sm rounded-3xl p-6 text-center pop-in shadow-2xl">
@@ -954,6 +1182,14 @@
             TOTAL_ROUNDS: 10,
             BUTTONS: { RED: 0, YELLOW: 1, GREEN: 2, BLUE: 3, EXIT: 9, DPAD_UP: 12, DPAD_DOWN: 13, DPAD_LEFT: 14, DPAD_RIGHT: 15 },
             AGE_GROUPS: ['TODDLER', 'ELEMENTARY', 'TEEN', 'ADULT', 'SENIOR'],
+            OFFSETS: { 'TOUCH': 0, 'MOUSE': -120, 'GAMEPAD': -80 },
+            TIMING: {
+                'TODDLER': { MAX_TIME: 3000 }, // Generous
+                'ELEMENTARY': { MAX_TIME: 2500 },
+                'TEEN': { MAX_TIME: 2000 },
+                'ADULT': { MAX_TIME: 2000 },
+                'SENIOR': { MAX_TIME: 3000 }
+            },
             LEVELS: [
                 { id: 1, speed: 2000, goRatio: 0.5 }, { id: 2, speed: 1800, goRatio: 0.5 },
                 { id: 3, speed: 1500, goRatio: 0.4 }, { id: 4, speed: 1200, goRatio: 0.4 },
@@ -965,7 +1201,11 @@
             screen: 'MENU', ageGroup: 'TODDLER', gamepadIndex: null, menuFocus: 'LEVEL', menuIndex: 0, ageMenuIndex: 0,
             level: 1, round: 1,
             waitingForInput: false, roundStartTime: 0, currentLight: null, charPos: 0, inputLocked: false,
-            sessionData: { blockData: [] }, // { rt: number, result: 'HIT'|'MISS'|'COMMISSION'|'OMISSION', type: 'GO'|'NOGO' }
+            inputMode: null, // 'TOUCH', 'MOUSE', 'GAMEPAD'
+            sessionData: {
+                blockData: [],
+                anticipatory: 0, omission: 0, commission: 0, motorDelay: 0, correct: 0, rtSum: 0, total: 0
+            },
             lastButtonState: {}, lastNavTime: 0, modalFocusIndex: 0, timerId: null
         };
 
@@ -991,6 +1231,10 @@
             window.addEventListener("gamepadconnected", (e) => { state.gamepadIndex = e.gamepad.index; updateGamepadUI(true); showToast("🎮 Gamepad Connected"); });
             window.addEventListener("gamepaddisconnected", (e) => { if (state.gamepadIndex === e.gamepad.index) { state.gamepadIndex = null; updateGamepadUI(false); } });
             setAgeGroup('TODDLER');
+
+            // Show Input Selection Modal
+            const modal = document.getElementById('modal-input');
+            if (modal) modal.classList.add('active');
         }
 
         function updateGamepadUI(connected) {
@@ -1030,7 +1274,7 @@
 
             // Errors
             const commissionErrors = nogoTrials.filter(d => d.result === 'COMMISSION').length;
-            const omissionErrors = goTrials.filter(d => d.result === 'OMISSION').length;
+            const omissionErrors = goTrials.filter(d => d.result === 'MISS').length;
 
             // Accuracy (Total Correct / Total Trials)
             const totalCorrect = hits.length + nogoTrials.filter(d => d.result === 'SUCCESS_HOLD').length;
@@ -1172,13 +1416,39 @@
         }
 
         /* --- GAME LOGIC --- */
+        function selectInput(mode) {
+            state.inputMode = mode;
+            document.getElementById('modal-input').classList.remove('active');
+            // Wait briefly before starting to avoid immediate input
+            // [FIX] Only auto-start round if we are already in the GAME screen
+            if (state.screen === 'GAME') {
+                setTimeout(() => {
+                    setTimeout(nextRound, 1000);
+                }, 500);
+            }
+        }
+
         function startGame(levelIdx) {
             state.level = levelIdx + 1; state.round = 1;
-            state.sessionData.blockData = [];
+
+            // [FIX] Do not reset inputMode here.
+            // state.inputMode = null; 
+
+            state.sessionData = {
+                blockData: [],
+                anticipatory: 0, omission: 0, commission: 0, motorDelay: 0, correct: 0, rtSum: 0, total: 0
+            };
             state.screen = 'GAME'; state.charPos = 0; updateCharVisuals();
             updateScreenVisibility(); updateHUD();
             resetLights();
-            setTimeout(nextRound, 1000);
+
+            // [FIX] Only show modal if inputMode is not selected yet
+            if (!state.inputMode) {
+                document.getElementById('modal-input').classList.add('active');
+            } else {
+                // If already selected, start game directly
+                setTimeout(nextRound, 1000);
+            }
         }
 
         function updateScreenVisibility() {
@@ -1191,6 +1461,29 @@
         function updateHUD() {
             els.game.level.innerText = state.level; els.game.round.innerText = `${state.round}/${CONFIG.TOTAL_ROUNDS}`;
             els.game.msgBubble.style.opacity = 0;
+            updateInputIndicator();
+        }
+
+        function updateInputIndicator() {
+            const el = document.getElementById('game-gamepad-indicator');
+            if (!el) return;
+            if (!state.inputMode) { el.classList.add('hidden'); return; }
+
+            el.classList.remove('hidden');
+            // Reset base classes
+            el.className = 'rounded-full p-1 border flex items-center justify-center transition-all bg-white';
+
+            let icon = ''; let colorClass = '';
+            if (state.inputMode === 'TOUCH') {
+                icon = 'touch_app'; colorClass = 'text-amber-500 border-amber-200 shadow-sm';
+            } else if (state.inputMode === 'MOUSE') {
+                icon = 'mouse'; colorClass = 'text-blue-500 border-blue-200 shadow-sm';
+            } else if (state.inputMode === 'GAMEPAD') {
+                icon = 'videogame_asset'; colorClass = 'text-emerald-500 border-emerald-200 shadow-sm';
+            }
+
+            el.classList.add(...colorClass.split(' '));
+            el.innerHTML = `<span class="material-symbols-rounded text-lg block">${icon}</span>`;
         }
 
         function nextRound() {
@@ -1235,11 +1528,18 @@
             if (state.screen !== 'GAME' || state.inputLocked) return;
             if (audioCtx.state === 'suspended') audioCtx.resume();
 
+            // Universal Input: Allow keys/clicks/gamepad regardless of mode
+            // Strict Input Control Removed
+            // if (!state.inputMode) return;
+            // if (state.inputMode === 'GAMEPAD' && source !== 'GAMEPAD') return;
+
             els.actionBtn.classList.add('active');
             setTimeout(() => els.actionBtn.classList.remove('active'), 100);
 
             if (!state.waitingForInput && state.currentLight === 'yellow') {
                 // Early Press (Impulsivity on Yellow)
+                showErrorEffect();
+                state.sessionData.commission++;
                 handleRoundEnd('COMMISSION', 'NOGO');
                 return;
             }
@@ -1251,7 +1551,8 @@
             } else if (state.currentLight === 'red') {
                 playSound(SOUNDS.HORN);
                 if (navigator.vibrate) navigator.vibrate(200);
-                charShake(); showFailMark();
+                charShake(); showFailMark(); showErrorEffect();
+                state.sessionData.commission++;
                 handleRoundEnd('COMMISSION', 'NOGO');
             }
         }
@@ -1260,12 +1561,28 @@
             state.waitingForInput = false; state.inputLocked = true;
             clearTimeout(state.timerId);
 
-            const rt = performance.now() - state.roundStartTime;
+            const now = performance.now();
+            const rawRT = now - state.roundStartTime;
+
+            // RT Compensation
+            let offset = CONFIG.OFFSETS[state.inputMode] || 0;
+            let validRT = Math.max(0, rawRT + offset);
+
             let validity = 'VALID';
-            if (type === 'GO' && result === 'HIT' && rt < 150) validity = 'ANTICIPATORY'; // Too fast
+            if (type === 'GO' && result === 'HIT') {
+                if (validRT < 150) {
+                    validity = 'ANTICIPATORY';
+                    state.sessionData.anticipatory++;
+                    result = 'WRONG'; // Reclassify HIT as WRONG?
+                    // Clinical standard: RT<150 is Anticipatory Error.
+                } else if (rawRT > (CONFIG.TIMING[state.ageGroup].MAX_TIME * 0.9)) {
+                    // Motor Delay check?
+                }
+            }
+            if (result === 'HIT' && validity === 'VALID') state.sessionData.correct++;
 
             // Record Data
-            state.sessionData.blockData.push({ round: state.round, rt: (result === 'HIT' ? rt : 0), result: result, type: type });
+            state.sessionData.blockData.push({ round: state.round, rt: (result === 'HIT' ? validRT : 0), rawRT: rawRT, result: result, type: type, validity: validity, input: state.inputMode });
 
             let delay = 1000;
             if (result === 'HIT') { showBubble("성공!", "text-blue-600"); delay = 2500; }
@@ -1281,90 +1598,43 @@
             playSound(SOUNDS.FINISH);
             state.screen = 'RESULT';
 
-            // ===== [01-001] PlayLabCore.Analysis 연동 =====
-            // IMPORTANT: 01-001의 데이터 구조와 PlayLabCore.Analysis 표준 형식 간 정규화
-            //
-            // 01-001 데이터 형식:
-            //   - result: 'HIT' | 'MISS' | 'COMMISSION' | 'SUCCESS_HOLD'
-            //   - type: 'GO' | 'NOGO'
-            //
-            // PlayLabCore.Analysis 표준 형식:
-            //   - result: 'CORRECT' | 'WRONG'
-            //   - validity: 'VALID' | 'LAPSE' | 'ANTICIPATORY'
-            //
-            // 매핑 로직:
-            //   HIT → CORRECT + VALID
-            //   SUCCESS_HOLD → CORRECT + VALID
-            //   MISS (GO타입) → WRONG + LAPSE
-            //   COMMISSION (NOGO타입) → WRONG + VALID
-            //   RT < 150ms → ANTICIPATORY
+            // Use analyzeSession() to get the correct local metrics and chart data
+            const analysisResult = analyzeSession();
 
-            const data = state.sessionData;
-
-            // 1. 데이터 정규화: 01-001 → PlayLabCore.Analysis 형식
-            const normalizedBlockData = data.blockData.map(d => {
-                let coreResult = 'CORRECT';
-                let validity = 'VALID';
-
-                // 결과 판정
-                if (d.result === 'MISS' || d.result === 'COMMISSION') {
-                    coreResult = 'WRONG';
-                }
-
-                // Validity 판정
-                if (d.type === 'GO' && d.result === 'HIT' && d.rt < 150) {
-                    validity = 'ANTICIPATORY'; // 예측 반응
-                }
-                if (d.type === 'GO' && d.result === 'MISS') {
-                    validity = 'LAPSE'; // 무응답
-                }
-
-                return {
-                    rt: d.rt,
-                    result: coreResult,
-                    validity: validity,
-                    level: state.level,
-                    round: d.round
-                };
-            });
-
-            // 2. PlayLabCore.Analysis에 데이터 주입
-            PlayLabCore.Analysis.sessionData = {
-                blockData: normalizedBlockData,
-                validRTs: normalizedBlockData.filter(d => d.validity === 'VALID').map(d => d.rt),
-                lapses: normalizedBlockData.filter(d => d.validity === 'LAPSE').length,
-                errors: normalizedBlockData.filter(d => d.result === 'WRONG').length
-            };
-
-            // 3. PlayLabCore.Analysis를 사용한 핵심 지표 계산
+            // Generate standard core metrics for saving to history (compatibility)
             const coreMetrics = PlayLabCore.Analysis.calculateMetrics(state.level, CONFIG.TOTAL_ROUNDS);
 
-            // 4. 01-001 고유 통계 계산 (COMMISSION, OMISSION)
-            const localStats = calculateStatistics(data.blockData);
-
-            // 5. 병합된 metrics 객체 생성
             const metrics = {
-                ...coreMetrics,
-                comm: localStats.comm,
-                omiss: localStats.omiss
+                ...coreMetrics, // Keep standard fields
+                ...analysisResult, // Override with local calculations
+                rt: analysisResult.rt,
+                acc: analysisResult.acc,
+                iiv: analysisResult.iiv,
+                comm: analysisResult.comm,
+                omiss: analysisResult.omiss
             };
 
-            // 6. 점수 계산 (PlayLabCore의 나이별 점수 사용)
-            const ageScore = PlayLabCore.Analysis.calculateScoreByAge(
-                state.ageGroup,
-                coreMetrics.rt,
-                coreMetrics.acc,
-                coreMetrics.iiv,
-                coreMetrics.sus
-            );
+            // Score Calculation
+            const ageScore = PlayLabCore.Analysis.calculateScoreByAge(coreMetrics, state.ageGroup, state.level);
 
-            // ===== UI 업데이트 =====
-            // [버그 수정] calculateScoreByAge는 number를 직접 반환 (객체 아님)
+            // Save History
+            const gamePayload = {
+                gameId: '01-001',
+                gameName: 'Signal Light Guardian',
+                group: state.ageGroup,
+                level: state.level,
+                score: ageScore,
+                duration: 0,
+                metrics: metrics,
+                rawData: state.sessionData
+            };
+            PlayLabCore.History.saveGameHistory(gamePayload);
+
+            // UI Update
             els.report.ageGroup.innerText = state.ageGroup;
             els.report.totalScore.innerText = ageScore;
             els.report.scoreBar.style.width = `${ageScore}%`;
 
-            // Risk Label Logic
             let riskLabel = "위험"; let barColor = "bg-rose-500";
             if (ageScore >= 80) { riskLabel = "최우수"; barColor = "bg-indigo-500"; }
             else if (ageScore >= 60) { riskLabel = "양호"; barColor = "bg-emerald-500"; }
@@ -1374,57 +1644,113 @@
             els.report.riskLabel.className = `text-lg font-bold mb-1 ${ageScore >= 60 ? 'text-emerald-400' : 'text-rose-400'}`;
             els.report.scoreBar.className = `h-full ${barColor}`;
 
-            // 메트릭 값 표시
-            els.report.valRT.innerText = `${coreMetrics.rt}ms`;
-            els.report.valACC.innerText = `${coreMetrics.acc}%`;
+            els.report.valRT.innerText = `${metrics.rt}ms`;
+            els.report.valACC.innerText = `${metrics.acc}%`;
             els.report.valCOMM.innerText = metrics.comm;
             els.report.valOMISS.innerText = metrics.omiss;
 
-            // Generate Feedback (01-001 고유 피드백 사용)
             els.report.feedback.innerHTML = getClinicalFeedback(metrics, state.ageGroup);
 
-            // Easy Report
             els.report.easyScore.innerText = ageScore;
-            els.report.easyAcc.innerText = coreMetrics.acc + "%";
+            els.report.easyAcc.innerText = metrics.acc + "%";
             if (ageScore >= 80) { els.report.easyTitle.innerText = "참 잘했어요!"; els.report.easyDesc.innerText = "교통 질서를 아주 잘 지키는군요!"; }
             else { els.report.easyTitle.innerText = "조금 더 집중해요"; els.report.easyDesc.innerText = "신호를 끝까지 보고 건너는 연습이 필요해요."; }
 
             toggleReportMode('EASY');
             updateScreenVisibility();
 
-            // 지표 설명 렌더링 (개별 줄)
             const metricDescriptions = PlayLabCore.Analysis.getMetricDescriptions();
             const metricsUsed = ['speed', 'accuracy', 'consistency', 'attention', 'control'];
             let descriptionsHTML = '';
             metricsUsed.forEach(key => {
                 if (metricDescriptions[key]) {
+                    const parts = metricDescriptions[key].split(' - ');
+                    const title = parts[0];
+                    const desc = parts[1];
                     descriptionsHTML += `
-                        <div class="text-[9px] text-slate-600 leading-relaxed mb-1">
-                            <strong class="text-slate-800">${metricDescriptions[key].split(' - ')[0]}:</strong> 
-                            ${metricDescriptions[key].split(' - ')[1]}
+                        <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
+                            <div class="font-bold text-slate-800 text-xs mb-1">${title}</div>
+                            <div class="text-[11px] text-slate-500 leading-relaxed">${desc}</div>
                         </div>
                     `;
                 }
             });
-            document.getElementById('metric-descriptions').innerHTML = descriptionsHTML;
+            const chartDescEl = document.getElementById('chart-descriptions');
+            if (chartDescEl) chartDescEl.innerHTML = descriptionsHTML;
 
-            renderChart(coreMetrics.chartData);
+            // Use the chartData from analyzeSession() which corresponds to the 5 axes
+            renderChart(analysisResult.chartData);
         }
 
         function renderChart(data) {
             const ctx = document.getElementById('radarChart').getContext('2d');
             if (radarChartInstance) radarChartInstance.destroy();
+
             radarChartInstance = new Chart(ctx, {
                 type: 'radar',
                 data: {
-                    labels: ['속도(Speed)', '정확도(Acc)', '억제력(Control)', '주의력(Attn)', '일관성(Consist)'],
+                    labels: [
+                        '처리 속도', '정확도', '일관성', '주의력', '억제 통제'
+                    ],
                     datasets: [{
-                        label: 'Patient Score', data: [data.speed, data.accuracy, data.control, data.attention, data.consistency],
-                        fill: true, backgroundColor: 'rgba(99, 102, 241, 0.2)', borderColor: 'rgb(99, 102, 241)',
-                        pointBackgroundColor: 'rgb(99, 102, 241)', pointBorderColor: '#fff'
+                        label: '인지 성능 프로파일 (0-100 점)',
+                        data: [
+                            data.speed || 0,
+                            data.accuracy || 0,
+                            data.consistency || 0,
+                            data.attention || 0,
+                            data.control || 0
+                        ],
+                        fill: true,
+                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                        borderColor: 'rgb(99, 102, 241)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgb(99, 102, 241)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(99, 102, 241)',
+                        pointRadius: 4,
+                        pointHoverRadius: 6
                     }]
                 },
-                options: { elements: { line: { borderWidth: 3 } }, scales: { r: { angleLines: { display: true }, suggestedMin: 0, suggestedMax: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+                options: {
+                    responsive: true,
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutElastic',
+                        delay: 100
+                    },
+                    elements: { line: { borderWidth: 2 } },
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            beginAtZero: true,
+                            angleLines: { display: true, color: 'rgba(0, 0, 0, 0.1)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            suggestedMin: 0,
+                            suggestedMax: 100,
+                            ticks: {
+                                stepSize: 20,
+                                display: true,
+                                font: { size: 10 },
+                                color: '#64748b'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                label: function (context) {
+                                    return context.label + ': ' + context.parsed.r.toFixed(1) + '점';
+                                }
+                            }
+                        }
+                    },
+                    maintainAspectRatio: true
+                }
             });
         }
 
@@ -1433,7 +1759,9 @@
             els.lights.red.classList.remove('active'); els.lights.yellow.classList.remove('active'); els.lights.green.classList.remove('active');
         }
         function showBubble(text, colorClass = "text-slate-600") {
-            els.game.msgBubble.innerText = text; els.game.msgBubble.className = `bg-white px-4 py-1.5 rounded-full font-bold text-lg shadow-md border border-slate-200 mb-2 transition-opacity whitespace-nowrap ${colorClass}`;
+            // Updated for relative positioning
+            els.game.msgBubble.innerText = text;
+            els.game.msgBubble.className = `bg-white px-8 py-3 rounded-full font-black text-6xl shadow-xl border-4 border-slate-200 mb-8 transition-opacity whitespace-nowrap z-50 ${colorClass}`;
             els.game.msgBubble.style.opacity = 1;
         }
         function updateCharVisuals() {
@@ -1450,6 +1778,12 @@
         }
         function showFailMark() {
             els.failMark.classList.remove('show'); void els.failMark.offsetWidth; els.failMark.classList.add('show'); setTimeout(() => els.failMark.classList.remove('show'), 1000);
+        }
+        function showErrorEffect() {
+            const gameScreen = document.getElementById('screen-game');
+            gameScreen.classList.remove('error-flash');
+            void gameScreen.offsetWidth;
+            gameScreen.classList.add('error-flash');
         }
 
         /* --- NAVIGATION & INPUT --- */
@@ -1473,6 +1807,19 @@
             if (state.gamepadIndex === null) return;
             const gp = navigator.getGamepads()[state.gamepadIndex]; if (!gp) return;
             const now = Date.now();
+
+            // Strict Input Check
+            if (state.screen === 'GAME' && state.inputMode !== 'GAMEPAD') return;
+
+            // [추가] 시각적 피드백: 버튼 0(A) 또는 1(B) 누름 감지
+            if (state.screen === 'GAME') {
+                const actionBtn = document.querySelector('.action-btn');
+                if (actionBtn) {
+                    const isActionPressed = gp.buttons[0].pressed || gp.buttons[1].pressed;
+                    if (isActionPressed) actionBtn.classList.add('active');
+                    else actionBtn.classList.remove('active');
+                }
+            }
 
             if (!els.modalHome.classList.contains('hidden')) { // Modal Control
                 if (now - state.lastNavTime < 150) return;
@@ -1507,7 +1854,7 @@
                     else { state.menuFocus = 'LEVEL'; renderMenu(); }
                 }
             } else if (state.screen === 'GAME') { // Game Control
-                if ((gp.buttons[0].pressed && !state.lastButtonState[0]) || (gp.buttons[1].pressed && !state.lastButtonState[1])) handleInput('gamepad');
+                if ((gp.buttons[0].pressed && !state.lastButtonState[0]) || (gp.buttons[1].pressed && !state.lastButtonState[1])) handleInput('GAMEPAD');
                 else if (gp.buttons[9].pressed && !state.lastButtonState[9]) goToMenuConfirm('GAME');
             } else if (state.screen === 'RESULT') {
                 if (gp.buttons[9].pressed && !state.lastButtonState[9]) goToMenuConfirm('RESULT');

@@ -1464,28 +1464,45 @@ const PlayLabCore = (() => {
          */
         getSessionInfo() {
             try {
-                // 1. localStorage에서 세션 확인
+                let session = {};
+
+                // 1. localStorage에서 선생님 세션 확인
                 const stored = localStorage.getItem('haha_lab_session');
                 if (stored) {
-                    const session = JSON.parse(stored);
-                    return {
-                        teacherId: session.teacherId || session.teacher_id,
-                        clientId: session.clientId || session.client_id,
-                        scheduleId: session.scheduleId || session.schedule_id
-                    };
+                    session = JSON.parse(stored);
                 }
 
-                // 2. URL 파라미터 확인
+                // 2. URL 파라미터 확인 (우선순위 높음)
                 const params = new URLSearchParams(window.location.search);
-                const teacherId = params.get('teacher_id');
-                const clientId = params.get('client_id');
-                const scheduleId = params.get('schedule_id');
+                const teacherIdParam = params.get('teacher_id');
+                const clientIdParam = params.get('client_id');
+                const scheduleIdParam = params.get('schedule_id');
+
+                // 3. 병합 (URL 파라미터가 있으면 덮어쓰기)
+                const teacherId = teacherIdParam || session.teacherId || session.teacher_id;
+                const clientId = clientIdParam ? parseInt(clientIdParam) : (session.clientId || session.client_id || session.currentSession?.client?.id);
+                const scheduleId = scheduleIdParam ? parseInt(scheduleIdParam) : (session.scheduleId || session.schedule_id || session.currentSession?.schedule?.id);
+
+                // client_name 추출 (index.html에서 haha_lab_current_session 등 사용 가능)
+                let clientName = null;
+                const currentSessionStore = localStorage.getItem('haha_lab_current_session');
+                if (currentSessionStore) {
+                    try {
+                        const parsedC = JSON.parse(currentSessionStore);
+                        if (parsedC?.client?.name) clientName = parsedC.client.name;
+                    } catch (e) { }
+                }
+
+                if (!clientName && session.currentSession?.client?.name) {
+                    clientName = session.currentSession.client.name;
+                }
 
                 if (teacherId) {
                     return {
                         teacherId,
-                        clientId: clientId ? parseInt(clientId) : null,
-                        scheduleId: scheduleId ? parseInt(scheduleId) : null
+                        clientId: clientId || null,
+                        scheduleId: scheduleId || null,
+                        clientName: clientName || '알수없음'
                     };
                 }
 
@@ -1521,13 +1538,16 @@ const PlayLabCore = (() => {
                 return { success: false, error: 'Guest mode, no history saved' };
             }
 
-            const { teacherId, clientId, scheduleId } = sessionInfo;
+            const { teacherId, clientId, scheduleId, clientName } = sessionInfo;
 
             try {
                 // action_type 결정
                 const actionTypeMap = {
+                    '01-000': 'game_color',
+                    '01-001': 'game_go_nogo',
                     '01-002': 'game_mole_whack',
-                    '01-003': 'game_stroop'
+                    '01-003': 'game_stroop',
+                    '01-004': 'game_simon'
                 };
                 const actionType = actionTypeMap[gameData.gameId] || 'game_custom';
 
@@ -1535,18 +1555,25 @@ const PlayLabCore = (() => {
                 const historyRecord = {
                     teacher_id: teacherId,
                     client_id: clientId,
+                    client_name: clientName,
                     schedule_id: scheduleId,
+                    type: 'game_play',
+                    category: 'session_history',
+                    action: '게임 완료',
                     action_type: actionType,
                     title: gameData.gameName || '게임 훈련',
+                    event_datetime: new Date().toISOString().slice(0, 19).replace('T', ' '),
                     description: `그룹: ${gameData.group}, 레벨: ${gameData.level}, 점수: ${gameData.score}`,
                     duration: gameData.duration || 0,
-                    metadata: {
+                    details: JSON.stringify({
                         game_id: gameData.gameId,
                         game_name: gameData.gameName,
-                        group: gameData.group,
                         level: gameData.level,
+                        metrics: gameData.metrics || {}
+                    }),
+                    metadata: {
+                        group: gameData.group,
                         score: gameData.score,
-                        metrics: gameData.metrics || {},
                         timestamp: new Date().toISOString()
                     }
                 };

@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PlayLab: 도형 짝꿍</title>
+    <link rel="icon" type="image/svg+xml" href="../images/hahalab-P.svg">
+
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Supabase Init -->
+    <script>
+        const SUPABASE_URL = 'https://gxungzlecmibgvykoiib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_hzQriBXTJeAwATA2NjnV7A_Tr9E1hfE';
+        if (window.supabase && window.supabase.createClient) {
+            window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+    </script>
+
+    <!-- PlayLab Framework -->
+    <script src="playlab-core.js"></script>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+
+    <style>
+        @font-face {
+            font-family: 'HappinessSansTitle';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2205@1.0/Happiness-Sans-Title.woff2') format('woff2');
+            font-weight: normal;
+            font-display: swap;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .font-title {
+            font-family: 'HappinessSansTitle', sans-serif;
+        }
+
+        .game-font {
+            font-family: 'Jua', sans-serif;
+        }
+
+        .text-body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        .font-medical {
+            font-family: 'Noto Sans KR', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        /* Main Container Layout */
+        main {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .center-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+            padding: 0;
+        }
+
+        .pop-in {
+            animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Game Specific Styles */
+        .shape-card {
+            width: 35vh;
+            height: 35vh;
+            /* 크기 대폭 확대 */
+            max-width: 320px;
+            max-height: 320px;
+            background: white;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s;
+            border: 8px solid #e2e8f0;
+        }
+
+        /* 아이콘 크기 확대 */
+        .shape-icon-lg {
+            font-size: clamp(6rem, 18vh, 10rem) !important;
+        }
+
+        .target-box {
+            background: #f1f5f9;
+            border: 3px dashed #cbd5e1;
+            padding: 12px 24px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .action-btn {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: #6366f1;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 0 #4338ca;
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+
+        .action-btn:active,
+        .action-btn.pressed {
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #4338ca;
+            background: #4f46e5;
+        }
+
+        /* Menu Styles */
+        .menu-item {
+            padding: 10px;
+            background: white;
+            border: 3px solid #cbd5e1;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #334155;
+            box-shadow: 0 4px 0 #94a3b8;
+            min-height: 80px;
+        }
+
+        .menu-item:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        .age-btn {
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #64748b;
+            background: #f1f5f9;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .age-btn.active-toddler {
+            background: #fef9c3;
+            color: #ca8a04;
+            border-color: #facc15;
+        }
+
+        .age-btn.active-elementary {
+            background: #dcfce7;
+            color: #15803d;
+            border-color: #4ade80;
+        }
+
+        .age-btn.active-adult {
+            background: #e0e7ff;
+            color: #4338ca;
+            border-color: #818cf8;
+        }
+
+        .age-btn.active-senior {
+            background: #f3e8ff;
+            color: #7e22ce;
+            border-color: #c084fc;
+        }
+
+        /* Tabs for Result Screen */
+        .tab-btn {
+            padding: 10px 20px;
+            font-weight: bold;
+            border-radius: 12px;
+            color: #64748b;
+            transition: all 0.2s;
+            flex: 1;
+        }
+
+        .tab-btn.active {
+            background-color: #0f172a;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Metric Card */
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #0f172a;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .input-card {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-overlay.active .input-card {
+            transform: scale(1);
+        }
+
+        .input-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 20px;
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            background: #f8fafc;
+            color: #64748b;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .input-btn:hover {
+            border-color: #cbd5e1;
+            background: #f1f5f9;
+        }
+
+        .input-btn:active {
+            transform: scale(0.98);
+        }
+
+        .input-icon {
+            font-size: 32px;
+            color: inherit;
+        }
+
+        /* Animation */
+        @keyframes slideIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.5) translateY(20px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .shape-appear {
+            animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .action-btn {
+            width: 140px;
+            height: 140px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+            border: 4px solid #fff;
+            color: #6366f1;
+            transition: all 0.1s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .action-btn:active,
+        .action-btn.pressed {
+            transform: scale(0.9);
+            background: #f5f3ff;
+            border-color: #6366f1;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+            color: #4338ca;
+        }
+
+        .action-btn.pressed::after {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <!-- SCREEN: MENU -->
+        <div id="screen-menu" class="w-full h-full px-4 relative flex flex-col items-center justify-center">
+            <div id="menu-gamepad-indicator"
+                class="absolute top-4 right-4 bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold hidden flex items-center gap-1 border border-emerald-200">
+                <span class="material-symbols-rounded text-sm">videogame_asset</span> Gamepad
+            </div>
+
+            <div class="center-container max-w-2xl">
+                <div class="text-center mb-8">
+                    <span
+                        class="inline-block px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold tracking-wider mb-2">SUSTAINED
+                        ATTENTION</span>
+                    <h1 class="text-4xl sm:text-6xl font-title font-bold tracking-tight text-slate-800 mb-2">도형 짝꿍</h1>
+                    <p class="text-lg text-slate-500 font-medium font-medical">지속적 주의력 및 형태 변별 훈련 (CPT)</p>
+                </div>
+
+                <!-- Age Selection -->
+                <div class="w-full bg-white p-3 rounded-2xl shadow-sm border border-slate-200 mb-6">
+                    <p class="text-xs font-bold text-slate-400 mb-2 ml-1">대상 그룹 선택 (Target Group)</p>
+                    <div class="grid grid-cols-4 gap-1.5" id="age-selector">
+                        <button onclick="setAgeGroup('TODDLER')" class="age-btn active-toddler"
+                            id="btn-toddler">아동</button>
+                        <button onclick="setAgeGroup('ELEMENTARY')" class="age-btn" id="btn-elementary">초등</button>
+                        <button onclick="setAgeGroup('ADULT')" class="age-btn" id="btn-adult">성인</button>
+                        <button onclick="setAgeGroup('SENIOR')" class="age-btn" id="btn-senior">고령자</button>
+                    </div>
+                </div>
+
+                <!-- Level List -->
+                <div id="level-list" class="w-full grid grid-cols-2 gap-3 mb-8 px-1">
+                    <!-- JS Generated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN: GAME -->
+        <div id="screen-game" class="hidden w-full h-full relative bg-slate-50 flex flex-col justify-center">
+            <!-- HUD -->
+            <div
+                class="absolute top-0 w-full h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <span class="text-sm font-bold text-slate-400">ROUND <span id="display-round"
+                            class="text-slate-800 text-lg">1/20</span></span>
+                    <div class="h-4 w-px bg-slate-200"></div>
+                    <span class="text-sm font-bold text-slate-400">SCORE <span id="display-score"
+                            class="text-indigo-600 text-lg">0</span></span>
+                </div>
+                <button onclick="goToMenuConfirm()" class="bg-rose-50 hover:bg-rose-100 text-rose-500 p-2 rounded-xl">
+                    <span class="material-symbols-rounded">logout</span>
+                </button>
+            </div>
+
+            <!-- Game Area -->
+            <div class="flex-grow flex flex-col items-center justify-center relative w-full">
+
+                <!-- Target Reference -->
+                <div class="target-box shadow-sm mt-16 transform scale-110">
+                    <p class="text-xs font-bold text-slate-400 mb-1">찾아야 할 도형</p>
+                    <span id="target-icon" class="material-symbols-rounded text-6xl text-slate-700">star</span>
+                </div>
+
+                <!-- Main Stimulus Area -->
+                <div id="stimulus-container" class="mb-12 relative">
+                    <div id="stimulus-card" class="shape-card">
+                        <span id="stimulus-icon"
+                            class="material-symbols-rounded shape-icon-lg text-indigo-500 opacity-0">question_mark</span>
+                    </div>
+                    <!-- Feedback Overlay -->
+                    <div id="feedback-overlay"
+                        class="absolute inset-0 flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200 z-20">
+                        <span class="material-symbols-rounded text-8xl drop-shadow-2xl mb-2"
+                            id="feedback-icon">check_circle</span>
+                        <span
+                            class="font-black text-3xl text-slate-800 bg-white/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg border-2 border-slate-100"
+                            id="feedback-text"></span>
+                    </div>
+                </div>
+
+                <!-- Input Cue -->
+                <div class="flex flex-col items-center">
+                    <div id="input-btn" class="action-btn" onmousedown="handleInput('MOUSE')"
+                        ontouchstart="handleInput('TOUCH')">
+                        <span class="material-symbols-rounded text-4xl">touch_app</span>
+                    </div>
+                    <p class="mt-4 text-slate-400 text-sm font-bold animate-pulse">같은 모양일 때 누르세요!</p>
+                </div>
+
+                <!-- Countdown Overlay -->
+                <div id="countdown-overlay" class="absolute inset-0 bg-slate-50 z-20 flex items-center justify-center">
+                    <div class="text-8xl font-black text-indigo-600 game-font" id="countdown-text">준비</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCREEN: RESULT -->
+        <div id="screen-result" class="hidden w-full h-full relative overflow-y-auto bg-white">
+
+            <div
+                class="absolute top-0 w-full h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shadow-sm">
+                <div class="font-bold text-slate-700 text-lg">결과 리포트</div>
+                <button onclick="goToMenu()"
+                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-xl transition-colors flex items-center gap-1 px-3">
+                    <span class="material-symbols-rounded text-sm">home</span>
+                    <span class="text-sm font-bold">홈으로</span>
+                </button>
+            </div>
+
+            <div class="max-w-4xl mx-auto px-4 py-8 mt-16">
+                <!-- Tabs -->
+                <div class="flex bg-slate-100 p-1 rounded-2xl mb-6">
+                    <button onclick="toggleReportMode('EASY')" id="tab-easy" class="tab-btn active">쉬운 요약</button>
+                    <button onclick="toggleReportMode('CLINICAL')" id="tab-clinical" class="tab-btn">전문 분석</button>
+                </div>
+
+                <!-- Report: Easy -->
+                <div id="report-easy" class="pop-in">
+                    <div class="bg-white rounded-3xl p-8 border-2 border-slate-100 shadow-xl text-center mb-6">
+                        <div class="inline-block p-4 rounded-full bg-indigo-50 mb-4">
+                            <span class="material-symbols-rounded text-6xl text-indigo-500"
+                                id="easy-icon">emoji_events</span>
+                        </div>
+                        <h2 class="text-3xl font-black text-slate-800 mb-2" id="easy-title">참 잘했어요!</h2>
+                        <p class="text-lg text-slate-500 mb-8 whitespace-pre-line" id="easy-desc">끝까지 집중력을 잃지 않았어요.</p>
+
+                        <div class="flex justify-center gap-4 mb-4">
+                            <div class="bg-slate-50 p-4 rounded-2xl w-full max-w-[150px]">
+                                <span class="text-xs font-bold text-slate-400 block mb-1">나의 점수</span>
+                                <span class="text-3xl font-black text-indigo-600" id="easy-score">0</span>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl w-full max-w-[150px]">
+                                <span class="text-xs font-bold text-slate-400 block mb-1">정확도</span>
+                                <span class="text-3xl font-black text-rose-500" id="easy-acc">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-indigo-50 rounded-2xl p-6 text-center border border-indigo-100">
+                        <span class="text-indigo-900 font-bold text-lg">💡 하하랩의 한마디</span>
+                        <p class="text-indigo-700 mt-2 font-medium" id="easy-advice">매일 연습하면 집중력이 더 좋아져요!</p>
+                    </div>
+                </div>
+
+                <!-- Report: Clinical (Updated to match 01-000 Dual View) -->
+                <div id="report-clinical" class="hidden pop-in">
+                    <div class="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-6">
+                        <div>
+                            <h2 class="text-2xl font-black text-slate-900 font-title">Clinical Detail</h2>
+                            <p class="text-xs text-slate-500 font-medical mt-1">CPT (Continuous Performance Test)
+                                Analysis</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold text-slate-400">PATIENT GROUP</p>
+                            <p class="text-base font-bold text-indigo-600" id="report-age-group">TODDLER</p>
+                        </div>
+                    </div>
+
+                    <!-- 2-Column Grid: Chart & Score/Metrics -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Left: Radar Chart -->
+                        <div
+                            class="bg-slate-50 rounded-2xl p-4 flex flex-col items-center justify-center border border-slate-200 shadow-inner relative min-h-[300px]">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+
+                        <!-- Right: Score & Metrics -->
+                        <div class="flex flex-col justify-between gap-4">
+                            <!-- RISK SCORE Box (Added from 01-000) -->
+                            <div class="bg-slate-900 text-white p-5 rounded-2xl shadow-lg">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-xs font-bold text-slate-400">RISK SCORE</span>
+                                </div>
+                                <div class="flex items-end gap-2">
+                                    <span class="text-4xl font-black" id="report-total-score">0</span>
+                                    <span class="text-base font-medium mb-1" id="report-risk-label">-</span>
+                                </div>
+                                <div class="w-full bg-slate-700 h-1.5 rounded-full mt-4 overflow-hidden">
+                                    <div id="score-bar" class="h-full bg-gradient-to-r from-emerald-400 to-teal-500"
+                                        style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Metrics Grid -->
+                            <div class="grid grid-cols-2 gap-3 h-full content-start">
+                                <div class="metric-card"><span class="metric-label">반응 속도 (RT)</span><span
+                                        class="metric-value text-indigo-600" id="val-rt">0ms</span></div>
+                                <div class="metric-card"><span class="metric-label">정확도 (ACC)</span><span
+                                        class="metric-value text-rose-500" id="val-acc">0%</span></div>
+                                <div class="metric-card"><span class="metric-label">누락 오류 (Omission)</span><span
+                                        class="metric-value text-slate-600" id="val-omission">0</span></div>
+                                <div class="metric-card"><span class="metric-label">충동 오류 (Commission)</span><span
+                                        class="metric-value text-amber-600" id="val-commission">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 mb-8">
+                        <h3 class="text-base font-bold text-indigo-900 flex items-center gap-2 mb-3">
+                            <span class="material-symbols-rounded">neurology</span>
+                            임상적 판단 및 전문 소견 (Professional Clinical Assessment)
+                        </h3>
+                        <div class="font-medical text-slate-700 text-sm leading-relaxed space-y-2"
+                            id="report-feedback-text">
+                            분석 중...
+                        </div>
+                    </div>
+
+                    <!-- [Added] Metric Descriptions -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-6 mb-8">
+                        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
+                            <span class="material-symbols-rounded">help</span>
+                            지표 상세 설명
+                        </h3>
+                        <div id="metric-descriptions" class="w-full text-left space-y-2">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- [Added] Calculation Logic -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-8">
+                        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-3">
+                            <span class="material-symbols-rounded">calculate</span>
+                            수치 산출 기준 (Calculation Logic)
+                        </h3>
+                        <ul class="text-xs text-slate-600 space-y-2 list-disc list-inside leading-relaxed font-medium">
+                            <li><strong class="text-slate-800">반응 속도 (Reaction Time):</strong> 정답을 맞춘 반응 시간의 평균 (ms). 입력
+                                장치별 지연 보정값(Touch 0ms, Mouse -120ms, Gamepad -80ms)이 적용됩니다.</li>
+                            <li><strong class="text-slate-800">정확도 (Accuracy):</strong> (정답 횟수 / 전체 시도 횟수) × 100. 타겟을
+                                정확히 찾은 비율입니다.</li>
+                            <li><strong class="text-slate-800">누락 오류 (Omission Error):</strong> 타겟 자극이 제시되었으나 제한 시간 내에
+                                반응하지 못한 횟수입니다. 주의력 결핍의 주요 지표입니다.</li>
+                            <li><strong class="text-slate-800">충동 오류 (Commission Error):</strong> 타겟이 아닌 자극(Distractor)에
+                                잘못 반응한 횟수입니다. 충동성 및 억제 조절 실패의 지표입니다.</li>
+                        </ul>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-4 mt-8 opacity-60">
+                        <p class="text-[12px] text-slate-400 text-center leading-relaxed">
+                            * 본 결과는 의료법 상의 확정 진단이 아니며, 보조적 진단 자료(Auxiliary Diagnostic Data)로 활용되어야 합니다.<br>
+                            Phase 1/2 Clinical Validation in progress.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Input Selection -->
+    <div id="modal-input" class="modal-overlay">
+        <div class="input-card">
+            <h2 class="text-2xl font-black text-slate-800 mb-2">입력 장치 선택</h2>
+            <p class="text-slate-500 mb-6 font-medium">사용하실 입력 장치를 선택해 주세요.<br>정확한 반응속도 측정을 위해 필요합니다.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button class="input-btn flex flex-col items-center justify-center py-4" onclick="selectInput('TOUCH')">
+                    <span class="material-symbols-rounded input-icon text-indigo-500 text-3xl mb-1">touch_app</span>
+                    <span class="font-bold text-slate-700">터치스크린</span>
+                    <p class="text-[10px] text-indigo-400 mt-1 font-medium">기본 (보정 없음)</p>
+                </button>
+                <button class="input-btn flex flex-col items-center justify-center py-4" onclick="selectInput('MOUSE')">
+                    <span class="material-symbols-rounded input-icon text-blue-500 text-3xl mb-1">mouse</span>
+                    <span class="font-bold text-slate-700">마우스</span>
+                    <p class="text-[10px] text-blue-400 mt-1 font-medium">정밀 보정 (-120ms)</p>
+                </button>
+                <button
+                    class="input-btn col-span-2 relative overflow-hidden flex flex-col items-center justify-center py-4"
+                    onclick="selectInput('GAMEPAD')">
+                    <span
+                        class="material-symbols-rounded input-icon text-emerald-500 text-3xl mb-1">videogame_asset</span>
+                    <span class="font-bold text-slate-700">게임패드 (조이스틱)</span>
+                    <p class="text-[10px] text-emerald-400 mt-1 font-medium">입력 보정 (-80ms)</p>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-20 left-1/2 transform -translate-x-1/2 z-50"></div>
+
+    <script>
+        // --- GAME CONSTANTS ---
+        const SHAPES = [
+            { icon: 'circle', name: 'circle' },
+            { icon: 'square', name: 'square' },
+            { icon: 'change_history', name: 'triangle' },
+            { icon: 'star', name: 'star' },
+            { icon: 'diamond', name: 'diamond' },
+            { icon: 'favorite', name: 'heart' }
+        ];
+
+        const CONFIG = {
+            TOTAL_ROUNDS: 20,
+            AGE_SETTINGS: {
+                'TODDLER': { speed: 2500, colors: true, targetProb: 0.5, complexity: 3 },
+                'ELEMENTARY': { speed: 1500, colors: true, targetProb: 0.4, complexity: 4 },
+                'ADULT': { speed: 1000, colors: false, targetProb: 0.3, complexity: 5 },
+                'SENIOR': { speed: 1800, colors: true, targetProb: 0.4, complexity: 4 }
+            },
+            COLORS: ['text-rose-500', 'text-amber-500', 'text-emerald-500', 'text-blue-500', 'text-purple-500']
+        };
+
+        let state = {
+            screen: 'MENU', ageGroup: 'TODDLER', inputMode: null, level: 1, score: 0,
+            targetShape: null, currentStimulus: null, stimulusIndex: 0, stimulusTimer: null,
+            responseReceived: false, roundStartTime: 0,
+            sessionData: { blockData: [], startTime: 0, hits: 0, misses: 0, falseAlarms: 0, correctRejections: 0 }
+        };
+
+        let radarChartInstance = null;
+
+        // --- INITIALIZATION ---
+        function init() {
+            setAgeGroup('TODDLER');
+            renderMenu();
+            window.addEventListener("gamepadconnected", (e) => {
+                PlayLabCore.Gamepad.init(); // [Fix] Ensure Gamepad Core is initialized
+                showToast("🎮 게임패드 연결됨");
+
+                showToast("🎮 게임패드 연결됨");
+                document.getElementById('menu-gamepad-indicator').classList.remove('hidden');
+            });
+            // 키보드 스페이스바도 게임패드 입력과 동일하게 처리
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && state.screen === 'GAME') handleInput('GAMEPAD');
+            });
+            setTimeout(() => document.getElementById('modal-input').classList.add('active'), 500);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function setAgeGroup(group) {
+            state.ageGroup = group;
+            document.querySelectorAll('.age-btn').forEach(btn => {
+                btn.classList.remove('active-toddler', 'active-elementary', 'active-adult', 'active-senior');
+            });
+            document.getElementById(`btn-${group.toLowerCase()}`).classList.add(`active-${group.toLowerCase()}`);
+            renderMenu();
+        }
+
+        function renderMenu() {
+            const list = document.getElementById('level-list');
+            list.innerHTML = '';
+            for (let i = 1; i <= 6; i++) {
+                const btn = document.createElement('div');
+                btn.className = 'menu-item';
+                btn.innerHTML = `
+                    <span class="text-2xl font-black text-slate-700 block mb-1">LV.${i}</span>
+                    <span class="text-xs text-slate-400 font-bold">${getLevelDesc(i)}</span>
+                `;
+                btn.onclick = () => startGame(i);
+                list.appendChild(btn);
+            }
+        }
+
+        function getLevelDesc(lv) {
+            if (lv <= 2) return "느림 / 쉬움";
+            if (lv <= 4) return "보통 / 복합";
+            return "빠름 / 고난이도";
+        }
+
+        function selectInput(mode) {
+            state.inputMode = mode;
+            document.getElementById('modal-input').classList.remove('active');
+            showToast(`${mode} 모드 선택됨`);
+        }
+
+        function startGame(level) {
+            if (!state.inputMode) {
+                document.getElementById('modal-input').classList.add('active');
+                return;
+            }
+            state.level = level;
+            state.screen = 'GAME';
+            state.score = 0;
+            state.sessionData = { blockData: [], hits: 0, misses: 0, falseAlarms: 0, correctRejections: 0, startTime: Date.now() };
+
+            const ageSetting = CONFIG.AGE_SETTINGS[state.ageGroup];
+            state.currentSpeed = Math.max(500, ageSetting.speed - (state.level * 150));
+            state.targetProbability = ageSetting.targetProb;
+
+            document.getElementById('screen-menu').classList.add('hidden');
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('display-score').innerText = 0;
+            document.getElementById('display-round').innerText = `1/${CONFIG.TOTAL_ROUNDS}`;
+
+            state.targetShape = SHAPES[Math.floor(Math.random() * ageSetting.complexity)];
+            document.getElementById('target-icon').innerText = state.targetShape.icon;
+
+            const isMonochrome = !ageSetting.colors || state.level >= 5;
+            document.getElementById('target-icon').className = `material-symbols-rounded text-6xl ${isMonochrome ? 'text-slate-800' : 'text-indigo-500'}`;
+
+            const overlay = document.getElementById('countdown-overlay');
+            const txt = document.getElementById('countdown-text');
+            overlay.classList.remove('hidden');
+
+            let count = 3;
+            txt.innerText = count;
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) txt.innerText = count;
+                else if (count === 0) txt.innerText = "시작!";
+                else {
+                    clearInterval(timer);
+                    overlay.classList.add('hidden');
+                    state.stimulusIndex = 0;
+                    nextStimulus();
+                }
+            }, 800);
+        }
+
+        function nextStimulus() {
+            if (state.stimulusIndex >= CONFIG.TOTAL_ROUNDS) { endGame(); return; }
+
+            state.stimulusIndex++;
+            state.responseReceived = false;
+            document.getElementById('display-round').innerText = `${state.stimulusIndex}/${CONFIG.TOTAL_ROUNDS}`;
+
+            const isTarget = Math.random() < state.targetProbability;
+            const ageSetting = CONFIG.AGE_SETTINGS[state.ageGroup];
+            let stimulusShape;
+            if (isTarget) {
+                stimulusShape = state.targetShape;
+            } else {
+                let distractor;
+                do { distractor = SHAPES[Math.floor(Math.random() * ageSetting.complexity)]; } while (distractor.name === state.targetShape.name);
+                stimulusShape = distractor;
+            }
+
+            state.currentStimulus = { isTarget: isTarget, shape: stimulusShape, timestamp: performance.now() };
+
+            const iconEl = document.getElementById('stimulus-icon');
+            iconEl.innerText = stimulusShape.icon;
+            iconEl.classList.remove('opacity-0');
+            iconEl.parentElement.classList.add('shape-appear');
+            setTimeout(() => iconEl.parentElement.classList.remove('shape-appear'), 300);
+
+            const isMonochrome = !ageSetting.colors || state.level >= 5;
+            const randomColor = CONFIG.COLORS[Math.floor(Math.random() * CONFIG.COLORS.length)];
+            iconEl.className = `material-symbols-rounded shape-icon-lg ${isMonochrome ? 'text-slate-700' : randomColor}`;
+
+            state.roundStartTime = performance.now();
+            clearTimeout(state.stimulusTimer);
+            state.stimulusTimer = setTimeout(() => {
+                if (!state.responseReceived) processInput(null);
+            }, state.currentSpeed);
+        }
+
+        function handleInput(device) {
+            if (state.screen !== 'GAME' || state.responseReceived) return;
+            const btn = document.getElementById('input-btn');
+            btn.classList.add('pressed');
+            setTimeout(() => btn.classList.remove('pressed'), 100);
+            PlayLabCore.Audio.playSound('problem');
+            processInput(device);
+        }
+
+        function processInput(device) {
+            if (state.screen !== 'GAME') return;
+            state.responseReceived = true;
+            clearTimeout(state.stimulusTimer);
+
+            const now = performance.now();
+            const rawRT = device ? (now - state.roundStartTime) : state.currentSpeed;
+            const rtData = PlayLabCore.Analysis.applyDeviceOffset(rawRT, state.inputMode);
+            const isTarget = state.currentStimulus.isTarget;
+            const hasResponse = (device !== null);
+            let resultType = '';
+
+            if (isTarget && hasResponse) {
+                resultType = 'HIT'; state.sessionData.hits++; state.score += 10;
+                showFeedback(true, '성공!'); PlayLabCore.Audio.playCorrect();
+            } else if (isTarget && !hasResponse) {
+                resultType = 'MISS'; state.sessionData.misses++;
+                showFeedback(false, '늦었어요!'); PlayLabCore.Audio.playWrong();
+            } else if (!isTarget && hasResponse) {
+                resultType = 'FALSE_ALARM'; state.sessionData.falseAlarms++; state.score = Math.max(0, state.score - 5);
+                showFeedback(false, '실수!'); PlayLabCore.Audio.playWrong();
+            } else if (!isTarget && !hasResponse) {
+                resultType = 'CORRECT_REJECTION'; state.sessionData.correctRejections++; state.score += 5;
+            }
+
+            document.getElementById('display-score').innerText = state.score;
+            state.sessionData.blockData.push({
+                round: state.stimulusIndex, isTarget: isTarget, hasResponse: hasResponse, resultType: resultType,
+                rt: rtData.clinical_rt, raw_rt: rtData.raw_rt, device: device || 'TIMEOUT', validity: 'VALID'
+            });
+
+            setTimeout(() => {
+                document.getElementById('stimulus-icon').classList.add('opacity-0');
+                setTimeout(nextStimulus, 300);
+            }, 500);
+        }
+
+        function showFeedback(isGood, text) {
+            const overlay = document.getElementById('feedback-overlay');
+            const icon = document.getElementById('feedback-icon');
+            const feedbackText = document.getElementById('feedback-text');
+
+            feedbackText.innerText = text || '';
+
+            if (isGood) {
+                icon.innerText = 'check_circle';
+                icon.className = 'material-symbols-rounded text-8xl text-emerald-500 drop-shadow-lg pop-in mb-2';
+                feedbackText.className = 'font-black text-3xl text-emerald-800 bg-emerald-50/90 backdrop-blur px-6 py-2 rounded-xl shadow-lg border border-emerald-200';
+            } else {
+                icon.innerText = 'cancel';
+                icon.className = 'material-symbols-rounded text-8xl text-rose-500 drop-shadow-lg pop-in mb-2';
+                feedbackText.className = 'font-black text-3xl text-rose-800 bg-rose-50/90 backdrop-blur px-6 py-2 rounded-xl shadow-lg border border-rose-200';
+            }
+
+            overlay.classList.remove('opacity-0');
+            setTimeout(() => overlay.classList.add('opacity-0'), 600);
+        }
+
+        function endGame() {
+            state.screen = 'RESULT';
+            PlayLabCore.Audio.playFinish();
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-result').classList.remove('hidden');
+
+            const totalTrials = state.sessionData.blockData.length;
+            const correctTrials = state.sessionData.hits + state.sessionData.correctRejections;
+            const accuracy = Math.round((correctTrials / totalTrials) * 100);
+            const hitRTs = state.sessionData.blockData.filter(d => d.resultType === 'HIT').map(d => d.rt);
+            const avgRT = hitRTs.length > 0 ? Math.round(hitRTs.reduce((a, b) => a + b) / hitRTs.length) : 0;
+            const finalScore = Math.min(100, Math.round(accuracy * 0.7 + (state.level * 5)));
+
+            // Easy Report Population
+            const easyFeedback = PlayLabCore.Analysis.generateEasyFeedback({ score: finalScore, acc: accuracy }, state.ageGroup);
+            document.getElementById('easy-icon').innerText = easyFeedback.icon;
+            document.getElementById('easy-title').innerText = easyFeedback.title;
+            document.getElementById('easy-desc').innerText = easyFeedback.desc;
+            document.getElementById('easy-score').innerText = finalScore;
+            document.getElementById('easy-acc').innerText = accuracy + '%';
+            document.getElementById('easy-advice').innerText = easyFeedback.advice;
+
+            // Clinical Report Population (Update Score Card)
+            document.getElementById('report-age-group').innerText = state.ageGroup;
+            document.getElementById('report-total-score').innerText = finalScore;
+
+            // Risk Label logic similar to 01-000
+            let riskLabel = "위험", barColor = "from-rose-400 to-rose-600";
+            if (finalScore >= 90) { riskLabel = "최우수"; barColor = "from-indigo-400 to-indigo-600"; }
+            else if (finalScore >= 70) { riskLabel = "양호"; barColor = "from-emerald-400 to-emerald-600"; }
+            else if (finalScore >= 60) { riskLabel = "주의"; barColor = "from-amber-400 to-amber-600"; }
+
+            const riskLabelEl = document.getElementById('report-risk-label');
+            riskLabelEl.innerText = riskLabel;
+            // Reset colors and apply new ones
+            riskLabelEl.className = `text-base font-medium mb-1 ${finalScore >= 70 ? 'text-emerald-400' : 'text-rose-400'}`;
+            document.getElementById('score-bar').className = `h-full bg-gradient-to-r ${barColor}`;
+            document.getElementById('score-bar').style.width = `${finalScore}%`;
+
+            // Update Metrics
+            document.getElementById('val-rt').innerText = avgRT + 'ms';
+            document.getElementById('val-acc').innerText = accuracy + '%';
+            document.getElementById('val-omission').innerText = state.sessionData.misses;
+            document.getElementById('val-commission').innerText = state.sessionData.falseAlarms;
+
+            const clinicalFeedback = generateVigilanceFeedback(accuracy, avgRT, state.sessionData.falseAlarms, state.sessionData.misses);
+            document.getElementById('report-feedback-text').innerHTML = clinicalFeedback;
+
+            // [Updated] Populate Metric Descriptions (Customized Titles)
+            // 정확도, 지구력, 주의력(경계), 반응속도, 충동억제
+            const customDescriptions = [
+                { title: "정확도", desc: "전체 시행에서 정답을 맞춘 비율입니다. 높을수록 집중력과 판단력이 우수합니다." },
+                { title: "지구력", desc: "피로도에 저항하는 능력입니다. 높을수록 장시간 과제 수행 시에도 성능 유지가 가능합니다." },
+                { title: "주의력(경계)", desc: "지속적으로 주의를 기울이는 능력입니다. 높을수록 장기간 경계 상태를 유지할 수 있습니다." },
+                { title: "반응속도", desc: "시각 자극을 인식하고 반응하는 속도입니다. 빠를수록 뇌의 정보 처리가 효율적입니다." },
+                { title: "충동억제", desc: "충동적 반응을 억제하는 능력입니다. 높을수록 자제력과 행동 통제력이 뛰어납니다." }
+            ];
+
+            let descriptionsHTML = '';
+            customDescriptions.forEach(item => {
+                descriptionsHTML += `
+                    <div class="text-sm text-slate-700 leading-relaxed mb-2">
+                        <strong class="text-slate-900 font-bold">${item.title}:</strong> 
+                        ${item.desc}
+                    </div>
+                `;
+            });
+            const descContainer = document.getElementById('metric-descriptions');
+            if (descContainer) descContainer.innerHTML = descriptionsHTML;
+
+            // Save & Default View
+            toggleReportMode('EASY');
+
+            // Save History
+            PlayLabCore.History.saveGameHistory({
+                gameId: '01-004', gameName: '도형 짝꿍', group: state.ageGroup, level: state.level, score: finalScore,
+                duration: Math.floor((Date.now() - state.sessionData.startTime) / 1000),
+                metrics: { rt: avgRT, accuracy: accuracy, omissionErrors: state.sessionData.misses, commissionErrors: state.sessionData.falseAlarms }
+            });
+        }
+
+        function toggleReportMode(mode) {
+            const easyTab = document.getElementById('tab-easy');
+            const clinicalTab = document.getElementById('tab-clinical');
+            const easyView = document.getElementById('report-easy');
+            const clinicalView = document.getElementById('report-clinical');
+
+            if (mode === 'EASY') {
+                easyTab.classList.add('active'); clinicalTab.classList.remove('active');
+                easyView.classList.remove('hidden'); clinicalView.classList.add('hidden');
+            } else {
+                clinicalTab.classList.add('active'); easyTab.classList.remove('active');
+                clinicalView.classList.remove('hidden'); easyView.classList.add('hidden');
+                setTimeout(renderRadarChart, 100);
+            }
+        }
+
+        function renderRadarChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (radarChartInstance) radarChartInstance.destroy();
+
+            // Using last calculated stats
+            const totalTrials = state.sessionData.blockData.length || 1;
+            const acc = Math.round(((state.sessionData.hits + state.sessionData.correctRejections) / totalTrials) * 100);
+            const omissionRate = (state.sessionData.misses / totalTrials) * 100;
+            const commissionRate = (state.sessionData.falseAlarms / totalTrials) * 100;
+
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['정확도', '주의력(경계)', '충동 억제', '반응 속도', '지구력'],
+                    datasets: [{
+                        label: '인지 수행력',
+                        data: [
+                            acc,
+                            Math.max(0, 100 - omissionRate),
+                            Math.max(0, 100 - commissionRate),
+                            75, // Placeholder for RT norm
+                            80  // Placeholder for endurance
+                        ],
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        borderColor: '#6366f1',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#6366f1'
+                    }]
+                },
+                options: {
+                    scales: { r: { min: 0, max: 100, ticks: { display: false } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function generateVigilanceFeedback(acc, rt, commissions, omissions) {
+            let html = "";
+            const isImpulsive = commissions > omissions;
+            const isInattentive = omissions > commissions;
+
+            if (acc >= 90) {
+                html += `<div class="mb-3 p-3 bg-emerald-50 border-l-4 border-emerald-500 rounded text-sm text-emerald-800"><strong>최우수 상태:</strong> 지속적 주의력이 매우 뛰어납니다.</div>`;
+            } else if (acc >= 70) {
+                html += `<div class="mb-3 p-3 bg-indigo-50 border-l-4 border-indigo-500 rounded text-sm text-indigo-800"><strong>양호 상태:</strong> 전반적으로 과제를 잘 수행했습니다.</div>`;
+            } else {
+                html += `<div class="mb-3 p-3 bg-rose-50 border-l-4 border-rose-500 rounded text-sm text-rose-800"><strong>주의 필요:</strong> 주의력 유지가 다소 어렵습니다.</div>`;
+            }
+
+            if (isImpulsive && commissions > 2) html += `<p class="text-xs text-slate-600 mb-2">⚠ <strong>충동적 오류(Commission):</strong> 확인하지 않고 반응하는 경향이 있습니다. 잠시 멈추는 연습이 필요합니다.</p>`;
+            if (isInattentive && omissions > 2) html += `<p class="text-xs text-slate-600 mb-2">⚠ <strong>누락 오류(Omission):</strong> 자극을 놓치는 경우가 많습니다. 각성 수준을 높여야 합니다.</p>`;
+
+            return html;
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl font-bold animate-pulse';
+            toast.innerText = msg; container.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        function goToMenu() {
+            state.screen = 'MENU';
+            document.getElementById('screen-game').classList.add('hidden');
+            document.getElementById('screen-result').classList.add('hidden');
+            document.getElementById('screen-menu').classList.remove('hidden');
+            renderMenu();
+        }
+
+        function goToMenuConfirm() { if (confirm('종료하시겠습니까?')) goToMenu(); }
+        function gameLoop() {
+            const gamepad = PlayLabCore.Gamepad.poll();
+
+            if (gamepad && state.screen === 'GAME') {
+                // Joystick Mapping (Universal Selection)
+                // Green: B2
+                // Blue: B3, B4, B6
+                // Red: B0
+                // Yellow: B1, B5, B7
+                const allowedButtons = [0, 1, 2, 3, 4, 5, 6, 7];
+
+                // Check if ANY of the allowed buttons were just pressed
+                const isTriggered = allowedButtons.some(btnIdx => PlayLabCore.Gamepad.wasJustPressed(btnIdx));
+
+                if (isTriggered) {
+                    // Trigger input with visual feedback
+                    handleInput('GAMEPAD');
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+
+</html>
